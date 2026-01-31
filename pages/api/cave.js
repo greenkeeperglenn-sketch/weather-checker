@@ -96,18 +96,43 @@ export default async function handler(req, res) {
 
     const overlayYears = [...new Set(availableOverlayYears)].sort((a, b) => a - b);
 
+    // Fetch recent 6 months data from archive API
+    let recentData = {};
+    const today = new Date();
+    const sixMonthsAgo = new Date(today);
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const recentStartDate = sixMonthsAgo.toISOString().split('T')[0];
+    const recentEndDate = today.toISOString().split('T')[0];
+
+    try {
+      const recentUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${LATITUDE}&longitude=${LONGITUDE}&start_date=${recentStartDate}&end_date=${recentEndDate}&daily=${metric}&timezone=Europe/London`;
+      const recentResponse = await fetch(recentUrl);
+
+      if (recentResponse.ok) {
+        const recent = await recentResponse.json();
+        recent.daily.time.forEach((date, index) => {
+          const monthDay = date.substring(5);
+          const value = recent.daily[metric][index];
+          if (value !== null) {
+            recentData[monthDay] = value;
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Failed to fetch recent data:', e);
+    }
+
     // Fetch forecast data (up to 16 days ahead)
     const forecastMetrics = forecastMetricMap[metric] || metric;
-    const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LATITUDE}&longitude=${LONGITUDE}&daily=${forecastMetrics}&timezone=Europe/London&forecast_days=16&past_days=7`;
+    const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LATITUDE}&longitude=${LONGITUDE}&daily=${forecastMetrics}&timezone=Europe/London&forecast_days=16`;
 
     let forecastData = {};
-    let recentData = {};
 
     try {
       const forecastResponse = await fetch(forecastUrl);
       if (forecastResponse.ok) {
         const forecast = await forecastResponse.json();
-        const today = new Date().toISOString().split('T')[0];
 
         forecast.daily.time.forEach((date, index) => {
           const monthDay = date.substring(5);
@@ -123,13 +148,7 @@ export default async function handler(req, res) {
           }
 
           if (value !== null) {
-            if (date < today) {
-              // Recent past data
-              recentData[monthDay] = value;
-            } else {
-              // Future forecast
-              forecastData[monthDay] = value;
-            }
+            forecastData[monthDay] = value;
           }
         });
       }
