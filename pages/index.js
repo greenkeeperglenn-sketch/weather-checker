@@ -31,7 +31,7 @@ export default function Home() {
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [chartType, setChartType] = useState('line');
-  const [emphasizedYears, setEmphasizedYears] = useState(new Set());
+  const [grayedYears, setGrayedYears] = useState(new Set());
 
   const months = [
     { name: 'January', num: 1 },
@@ -96,7 +96,7 @@ export default function Home() {
     }
 
     setLoading(true);
-    setEmphasizedYears(new Set());
+    setGrayedYears(new Set());
 
     try {
       const response = await fetch('/api/weather', {
@@ -141,8 +141,8 @@ export default function Home() {
     setChartData({ labels, datasets, rawData: data });
   };
 
-  const handleLegendClick = (year) => {
-    setEmphasizedYears(prev => {
+  const toggleYearGray = (year) => {
+    setGrayedYears(prev => {
       const newSet = new Set(prev);
       if (newSet.has(year)) {
         newSet.delete(year);
@@ -162,27 +162,46 @@ export default function Home() {
       plugins: {
         legend: {
           position: 'top',
+          labels: {
+            generateLabels: (chart) => {
+              return chart.data.datasets.map((dataset, index) => {
+                const year = parseInt(dataset.label);
+                const isGrayed = grayedYears.has(year);
+                return {
+                  text: dataset.label,
+                  fillStyle: isGrayed ? 'rgba(200, 200, 200, 0.3)' : yearColors[index % yearColors.length],
+                  strokeStyle: isGrayed ? 'rgba(200, 200, 200, 0.3)' : yearColors[index % yearColors.length],
+                  lineWidth: 2,
+                  hidden: false,
+                  index: index
+                };
+              });
+            }
+          },
           onClick: (e, legendItem, legend) => {
             const year = parseInt(legendItem.text);
-            handleLegendClick(year);
-            
+            const newGrayedYears = new Set(grayedYears);
+            if (newGrayedYears.has(year)) {
+              newGrayedYears.delete(year);
+            } else {
+              newGrayedYears.add(year);
+            }
+            setGrayedYears(newGrayedYears);
+
             const chart = legend.chart;
             chart.data.datasets.forEach((dataset, index) => {
               const datasetYear = parseInt(dataset.label);
-              const isEmphasized = emphasizedYears.has(datasetYear) || 
-                                   (emphasizedYears.size === 0);
-              const shouldDeemphasize = emphasizedYears.size > 0 && 
-                                        !emphasizedYears.has(datasetYear);
-              
-              dataset.borderWidth = isEmphasized && emphasizedYears.size > 0 ? 3 : 2;
-              dataset.borderColor = shouldDeemphasize 
+              const isGrayed = newGrayedYears.has(datasetYear);
+
+              dataset.borderColor = isGrayed
                 ? 'rgba(200, 200, 200, 0.3)'
                 : yearColors[index % yearColors.length];
-              dataset.backgroundColor = shouldDeemphasize
+              dataset.backgroundColor = isGrayed
                 ? 'rgba(200, 200, 200, 0.1)'
                 : yearColors[index % yearColors.length] + '40';
+              dataset.borderWidth = 2;
             });
-            
+
             chart.update();
           }
         },
@@ -430,7 +449,7 @@ export default function Home() {
             <div style={{ background: '#e6f7ff', borderLeft: '4px solid #1890ff', padding: '20px', margin: '20px 0', borderRadius: '8px' }}>
               <h3 style={{ color: '#0050b3', marginBottom: '10px' }}>💡 Tip</h3>
               <p style={{ color: '#0050b3' }}>
-                Click any year in the legend above to highlight it (others turn light gray). Click again to return to normal. Click multiple years to compare them!
+                Click any year in the legend to toggle it gray. Click again to restore its color. Toggle as many years as you like to focus on specific data.
               </p>
             </div>
           </div>
