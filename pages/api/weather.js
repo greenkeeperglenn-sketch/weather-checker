@@ -32,17 +32,23 @@ export default async function handler(req, res) {
       const data = await response.json();
       
       // Filter to only selected months
-      const filteredData = {};
+      const filteredData = { dates: [] };
       data.daily.time.forEach((date, index) => {
         const month = parseInt(date.substring(5, 7));
         if (months.includes(month)) {
+          // Store date as "Mon D" format (e.g., "Jan 15")
+          const dateObj = new Date(date);
+          const monthName = dateObj.toLocaleDateString('en-GB', { month: 'short' });
+          const day = dateObj.getDate();
+          filteredData.dates.push(`${monthName} ${day}`);
+
           metrics.forEach(metric => {
             if (!filteredData[metric]) filteredData[metric] = [];
             filteredData[metric].push(data.daily[metric][index]);
           });
         }
       });
-      
+
       results[year] = filteredData;
     }
 

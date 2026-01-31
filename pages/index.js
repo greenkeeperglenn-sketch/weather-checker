@@ -125,7 +125,7 @@ export default function Home() {
 
   const processChartData = (data) => {
     const firstYear = selectedYears[0];
-    const labels = data[firstYear][selectedMetric].map((_, i) => `Day ${i + 1}`);
+    const labels = data[firstYear].dates;
 
     const datasets = selectedYears.map((year, index) => ({
       label: year.toString(),
@@ -233,14 +233,14 @@ export default function Home() {
     
     let csv = `Winchester Weather Daily Data - ${monthNames}\n`;
     csv += `Metric: ${metric.name} (${metric.unit})\n\n`;
-    csv += 'Day,' + selectedYears.join(',') + '\n';
-    
-    const numDays = chartData.rawData[selectedYears[0]][selectedMetric].length;
-    for (let i = 0; i < numDays; i++) {
-      const values = selectedYears.map(year => 
+    csv += 'Date,' + selectedYears.join(',') + '\n';
+
+    const dates = chartData.rawData[selectedYears[0]].dates;
+    for (let i = 0; i < dates.length; i++) {
+      const values = selectedYears.map(year =>
         chartData.rawData[year][selectedMetric][i]
       );
-      csv += `Day ${i + 1},` + values.join(',') + '\n';
+      csv += `${dates[i]},` + values.join(',') + '\n';
     }
 
     const blob = new Blob([csv], { type: 'text/csv' });
