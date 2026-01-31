@@ -474,7 +474,7 @@ export default function Home() {
 
             <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
               <h3 style={{ marginBottom: '15px' }}>
-                {metrics.find(m => m.id === selectedMetric)?.name} - {selectedMonths.map(m => months[m - 1].name).join(' + ')}
+                {metrics.find(m => m.id === selectedMetric)?.name} - {formatDateRange()}
               </h3>
               <div style={{ position: 'relative', height: '400px' }}>
                 <ChartComponent data={chartData} options={getChartOptions()} />
