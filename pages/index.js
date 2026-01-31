@@ -57,7 +57,7 @@ export default function Home() {
     { id: 'wind_speed_10m_max', name: 'Max Wind Speed', unit: 'km/h' },
   ];
 
-  const years = Array.from({ length: 13 }, (_, i) => 2014 + i);
+  const years = Array.from({ length: 12 }, (_, i) => 2014 + i); // 2014-2025 (archive API doesn't have current year data)
 
   const yearColors = [
     '#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a',
