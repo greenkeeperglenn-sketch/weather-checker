@@ -43,6 +43,7 @@ export default function Home() {
   const [caveData, setCaveData] = useState(null);
   const [caveOverlayYear, setCaveOverlayYear] = useState(2024);
   const [caveLoading, setCaveLoading] = useState(false);
+  const [availableOverlayYears, setAvailableOverlayYears] = useState([]);
 
   const months = [
     { name: 'Jan', num: 1, days: 31 },
@@ -181,6 +182,14 @@ export default function Home() {
 
   const processCaveData = (result) => {
     const { data, overlayData, overlayYears } = result;
+
+    // Store available overlay years for the UI
+    setAvailableOverlayYears(overlayYears);
+
+    // Default to most recent year if current selection isn't available
+    if (!overlayYears.includes(caveOverlayYear)) {
+      setCaveOverlayYear(overlayYears[overlayYears.length - 1]);
+    }
 
     // Get today's date info for positioning
     const today = new Date();
@@ -667,25 +676,34 @@ export default function Home() {
               <div style={{ marginBottom: '25px' }}>
                 <label style={{ display: 'block', fontWeight: '600', marginBottom: '10px', color: '#2d3748' }}>
                   Overlay Year (shown as dotted green line):
+                  <span style={{ marginLeft: '10px', color: '#a0aec0', fontWeight: '400', fontSize: '0.9em' }}>
+                    {caveOverlayYear}
+                  </span>
                 </label>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  {[2023, 2024].map(year => (
-                    <button
-                      key={year}
-                      onClick={() => setCaveOverlayYear(year)}
-                      style={{
-                        padding: '10px 20px',
-                        background: caveOverlayYear === year ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)' : 'white',
-                        color: caveOverlayYear === year ? '#00ff00' : '#333',
-                        border: '2px solid #1a1a2e',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontWeight: '600'
-                      }}
-                    >
-                      {year}
-                    </button>
-                  ))}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    value={caveOverlayYear}
+                    onChange={(e) => setCaveOverlayYear(parseInt(e.target.value))}
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: '6px',
+                      border: '2px solid #1a1a2e',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      background: 'white',
+                      cursor: 'pointer',
+                      minWidth: '100px'
+                    }}
+                  >
+                    {(availableOverlayYears.length > 0 ? availableOverlayYears : [2024]).map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                  <span style={{ color: '#666', fontSize: '0.9em' }}>
+                    {availableOverlayYears.length > 0
+                      ? `(${availableOverlayYears.length} years available: ${availableOverlayYears[0]}-${availableOverlayYears[availableOverlayYears.length - 1]})`
+                      : '(generate graph to see available years)'}
+                  </span>
                 </div>
               </div>
             </>
@@ -838,7 +856,7 @@ export default function Home() {
               <h3 style={{ color: 'white', marginBottom: '20px', textAlign: 'center' }}>
                 Climate Envelope: {metrics.find(m => m.id === selectedMetric)?.name}
                 <span style={{ display: 'block', fontSize: '0.8em', color: '#aaa', marginTop: '5px' }}>
-                  Historical range (2014-2024) with {caveOverlayYear} overlay
+                  Historical range ({availableOverlayYears[0] || 1980}-{availableOverlayYears[availableOverlayYears.length - 1] || 2025}) with {caveOverlayYear} overlay
                 </span>
               </h3>
               <div style={{ position: 'relative', height: '500px' }}>

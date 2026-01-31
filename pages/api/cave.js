@@ -9,8 +9,9 @@ export default async function handler(req, res) {
   const LATITUDE = 51.0632;
   const LONGITUDE = -1.3080;
 
-  // Use years 2014-2024 for historical data (exclude current/recent year for complete data)
-  const historicalYears = Array.from({ length: 11 }, (_, i) => 2014 + i);
+  // Use years 1980-2025 for historical data (45 years - ERA5 data available from 1940)
+  // Note: 2025 may have partial data depending on current date
+  const historicalYears = Array.from({ length: 46 }, (_, i) => 1980 + i);
 
   try {
     const allYearsData = {};
@@ -70,30 +71,23 @@ export default async function handler(req, res) {
       }
     });
 
-    // Also fetch most recent complete year for overlay option
-    const overlayYears = [2023, 2024];
+    // Build overlay data from the historical data we already have
     const overlayData = {};
+    const availableOverlayYears = [];
 
-    for (const year of overlayYears) {
-      const startDate = `${year}-01-01`;
-      const endDate = `${year}-12-31`;
-
-      const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${LATITUDE}&longitude=${LONGITUDE}&start_date=${startDate}&end_date=${endDate}&daily=${metric}&timezone=Europe/London`;
-
-      try {
-        const response = await fetch(url);
-        if (response.ok) {
-          const data = await response.json();
+    // Extract individual year data for overlay from allYearsData
+    Object.keys(allYearsData).forEach(monthDay => {
+      allYearsData[monthDay].forEach(({ year, value }) => {
+        if (!overlayData[year]) {
           overlayData[year] = {};
-          data.daily.time.forEach((date, index) => {
-            const monthDay = date.substring(5);
-            overlayData[year][monthDay] = data.daily[metric][index];
-          });
+          availableOverlayYears.push(year);
         }
-      } catch (e) {
-        console.error(`Failed to fetch overlay year ${year}:`, e);
-      }
-    }
+        overlayData[year][monthDay] = value;
+      });
+    });
+
+    // Sort and dedupe overlay years
+    const overlayYears = [...new Set(availableOverlayYears)].sort((a, b) => a - b);
 
     res.status(200).json({
       success: true,
