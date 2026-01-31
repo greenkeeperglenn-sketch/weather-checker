@@ -183,25 +183,46 @@ export default function Home() {
   const processCaveData = (result) => {
     const { data, overlayData, overlayYears, forecastData, recentData } = result;
 
-    // Store available overlay years for the UI
-    setAvailableOverlayYears(overlayYears);
-
-    // Default to 'current' if not a valid selection
-    if (caveOverlayYear !== 'current' && !overlayYears.includes(caveOverlayYear)) {
-      setCaveOverlayYear('current');
-    }
-
     // Get today's date info for positioning
     const today = new Date();
     const currentMonth = today.getMonth() + 1;
     const currentDay = today.getDate();
+    const currentYear = today.getFullYear();
 
     // Create rolling year view: 6 months back, 6 months forward
     const startMonth = ((currentMonth - 7 + 12) % 12) + 1; // 6 months back
+
+    // Determine which year the start month falls in
+    // If startMonth > currentMonth, it's in the previous year
+    const startYearOffset = startMonth > currentMonth ? -1 : 0;
+
     const orderedMonths = [];
     for (let i = 0; i < 12; i++) {
       const m = ((startMonth - 1 + i) % 12) + 1;
       orderedMonths.push(m);
+    }
+
+    // Create spanning year pairs (e.g., "23/24" means Aug 2023 - Jul 2024)
+    // The first year in the pair is where the "back" months come from
+    const spanningYears = [];
+    for (let i = 0; i < overlayYears.length - 1; i++) {
+      const year1 = overlayYears[i];
+      const year2 = overlayYears[i + 1];
+      if (year2 === year1 + 1) {
+        spanningYears.push({
+          label: `${String(year1).slice(-2)}/${String(year2).slice(-2)}`,
+          year1,
+          year2
+        });
+      }
+    }
+
+    // Store available spanning years for the UI
+    setAvailableOverlayYears(spanningYears);
+
+    // Default to 'current' if not a valid selection
+    if (caveOverlayYear !== 'current' && !spanningYears.some(sy => sy.label === caveOverlayYear)) {
+      setCaveOverlayYear('current');
     }
 
     // Build labels and data arrays in rolling order
@@ -213,8 +234,9 @@ export default function Home() {
     const overlayDataPoints = {};
     const currentDataPoints = []; // Combined recent + forecast
 
-    overlayYears.forEach(year => {
-      overlayDataPoints[year] = [];
+    // Initialize overlay data for each spanning year
+    spanningYears.forEach(sy => {
+      overlayDataPoints[sy.label] = [];
     });
     overlayDataPoints['current'] = [];
 
@@ -245,11 +267,15 @@ export default function Home() {
           maxData.push(null);
         }
 
-        overlayYears.forEach(year => {
-          if (overlayData[year] && overlayData[year][monthDay] !== undefined) {
-            overlayDataPoints[year].push(overlayData[year][monthDay]);
+        // For each spanning year pair, determine which year to use based on month
+        // If month >= startMonth (in the "back" portion), use year1
+        // If month < startMonth (in the "forward" portion after year rollover), use year2
+        spanningYears.forEach(sy => {
+          const useYear = month >= startMonth ? sy.year1 : sy.year2;
+          if (overlayData[useYear] && overlayData[useYear][monthDay] !== undefined) {
+            overlayDataPoints[sy.label].push(overlayData[useYear][monthDay]);
           } else {
-            overlayDataPoints[year].push(null);
+            overlayDataPoints[sy.label].push(null);
           }
         });
 
@@ -278,7 +304,7 @@ export default function Home() {
       p75Data,
       maxData,
       overlayDataPoints,
-      overlayYears,
+      spanningYears,
       todayIndex,
       currentDataPoints
     });
@@ -293,9 +319,9 @@ export default function Home() {
     const recentValues = currentDataPoints.map(d => d && d.type === 'recent' ? d.value : null);
     const forecastValues = currentDataPoints.map(d => d && d.type === 'forecast' ? d.value : null);
 
-    // Get overlay data - either a year or current combined
+    // Get overlay data - either spanning year or current combined
     const isCurrentSelected = caveOverlayYear === 'current';
-    const overlayLabel = isCurrentSelected ? 'Current' : `${caveOverlayYear}`;
+    const overlayLabel = isCurrentSelected ? 'Current' : caveOverlayYear;
     const overlayValues = isCurrentSelected
       ? currentDataPoints.map(d => d ? d.value : null)
       : (overlayDataPoints[caveOverlayYear] || []);
@@ -353,7 +379,7 @@ export default function Home() {
         {
           label: 'Actual',
           data: recentValues,
-          borderColor: '#ffff00',
+          borderColor: '#ff6b35',  // Bright orange - visible on black
           backgroundColor: 'transparent',
           borderWidth: 3,
           fill: false,
@@ -364,7 +390,7 @@ export default function Home() {
         {
           label: 'Forecast',
           data: forecastValues,
-          borderColor: '#00ffff',
+          borderColor: '#ff69b4',  // Hot pink - visible on black
           backgroundColor: 'transparent',
           borderWidth: 2,
           borderDash: [8, 4],
@@ -379,7 +405,7 @@ export default function Home() {
       datasets.push({
         label: overlayLabel,
         data: overlayValues,
-        borderColor: '#00ff00',
+        borderColor: '#32cd32',  // Lime green - visible on black
         backgroundColor: 'transparent',
         borderWidth: 2,
         borderDash: [5, 5],
@@ -736,7 +762,7 @@ export default function Home() {
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <select
                     value={caveOverlayYear}
-                    onChange={(e) => setCaveOverlayYear(e.target.value === 'current' ? 'current' : parseInt(e.target.value))}
+                    onChange={(e) => setCaveOverlayYear(e.target.value)}
                     style={{
                       padding: '10px 16px',
                       borderRadius: '6px',
@@ -749,16 +775,16 @@ export default function Home() {
                     }}
                   >
                     <option value="current">Current (Recent + Forecast)</option>
-                    <optgroup label="Historical Years">
-                      {(availableOverlayYears.length > 0 ? availableOverlayYears : []).map(year => (
-                        <option key={year} value={year}>{year}</option>
+                    <optgroup label="Historical Periods">
+                      {(availableOverlayYears.length > 0 ? availableOverlayYears : []).map(sy => (
+                        <option key={sy.label} value={sy.label}>{sy.label}</option>
                       ))}
                     </optgroup>
                   </select>
                   <span style={{ color: '#666', fontSize: '0.9em' }}>
                     {availableOverlayYears.length > 0
-                      ? `(${availableOverlayYears.length} historical years: ${availableOverlayYears[0]}-${availableOverlayYears[availableOverlayYears.length - 1]})`
-                      : '(generate graph to see available years)'}
+                      ? `(${availableOverlayYears.length} periods available)`
+                      : '(generate graph to see available periods)'}
                   </span>
                 </div>
               </div>
@@ -912,7 +938,7 @@ export default function Home() {
               <h3 style={{ color: 'white', marginBottom: '20px', textAlign: 'center' }}>
                 Climate Envelope: {metrics.find(m => m.id === selectedMetric)?.name}
                 <span style={{ display: 'block', fontSize: '0.8em', color: '#aaa', marginTop: '5px' }}>
-                  Historical range ({availableOverlayYears[0] || 1980}-{availableOverlayYears[availableOverlayYears.length - 1] || 2025})
+                  Historical range (1980-2025)
                   {caveOverlayYear === 'current' ? ' with current weather + forecast' : ` with ${caveOverlayYear} overlay`}
                 </span>
               </h3>
@@ -921,18 +947,18 @@ export default function Home() {
               </div>
             </div>
 
-            <div style={{ background: '#2d2d44', borderLeft: '4px solid #00ff00', padding: '20px', margin: '20px 0', borderRadius: '8px' }}>
-              <h3 style={{ color: '#00ff00', marginBottom: '10px' }}>Understanding the Cave Graph</h3>
+            <div style={{ background: '#2d2d44', borderLeft: '4px solid #32cd32', padding: '20px', margin: '20px 0', borderRadius: '8px' }}>
+              <h3 style={{ color: '#32cd32', marginBottom: '10px' }}>Understanding the Cave Graph</h3>
               <ul style={{ color: '#ccc', lineHeight: '1.8' }}>
                 <li><strong style={{ color: 'white' }}>White band (middle 50%):</strong> Normal range - values between 25th and 75th percentile</li>
                 <li><strong style={{ color: '#888' }}>Grey bands (outer 25%):</strong> Unusual range - below 25th or above 75th percentile</li>
                 {caveOverlayYear === 'current' ? (
                   <>
-                    <li><strong style={{ color: '#ffff00' }}>Yellow solid line:</strong> Recent actual weather (last 6 months)</li>
-                    <li><strong style={{ color: '#00ffff' }}>Cyan dashed line:</strong> Weather forecast (next 16 days)</li>
+                    <li><strong style={{ color: '#ff6b35' }}>Orange solid line:</strong> Recent actual weather (last 6 months)</li>
+                    <li><strong style={{ color: '#ff69b4' }}>Pink dashed line:</strong> Weather forecast (next 16 days)</li>
                   </>
                 ) : (
-                  <li><strong style={{ color: '#00ff00' }}>Green dotted line:</strong> {caveOverlayYear} historical data</li>
+                  <li><strong style={{ color: '#32cd32' }}>Lime green dotted line:</strong> {caveOverlayYear} historical data</li>
                 )}
                 <li><strong style={{ color: '#ff0000' }}>Red dashed line:</strong> Today's date</li>
               </ul>
