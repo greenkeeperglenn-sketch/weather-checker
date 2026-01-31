@@ -9,8 +9,17 @@ export default async function handler(req, res) {
   const LATITUDE = 51.0632;
   const LONGITUDE = -1.3080;
 
+  // Map archive metrics to forecast metrics (they use slightly different names)
+  const forecastMetricMap = {
+    'temperature_2m_mean': 'temperature_2m_max,temperature_2m_min', // Calculate mean from max/min
+    'temperature_2m_max': 'temperature_2m_max',
+    'temperature_2m_min': 'temperature_2m_min',
+    'precipitation_sum': 'precipitation_sum',
+    'sunshine_duration': 'sunshine_duration',
+    'wind_speed_10m_max': 'wind_speed_10m_max'
+  };
+
   // Use years 1980-2025 for historical data (45 years - ERA5 data available from 1940)
-  // Note: 2025 may have partial data depending on current date
   const historicalYears = Array.from({ length: 46 }, (_, i) => 1980 + i);
 
   try {
@@ -66,7 +75,7 @@ export default async function handler(req, res) {
           p25: percentile(values, 25),
           p75: percentile(values, 75),
           max: Math.max(...values),
-          values: allYearsData[monthDay] // Keep individual year values for overlay
+          values: allYearsData[monthDay]
         };
       }
     });
@@ -75,7 +84,6 @@ export default async function handler(req, res) {
     const overlayData = {};
     const availableOverlayYears = [];
 
-    // Extract individual year data for overlay from allYearsData
     Object.keys(allYearsData).forEach(monthDay => {
       allYearsData[monthDay].forEach(({ year, value }) => {
         if (!overlayData[year]) {
@@ -86,15 +94,57 @@ export default async function handler(req, res) {
       });
     });
 
-    // Sort and dedupe overlay years
     const overlayYears = [...new Set(availableOverlayYears)].sort((a, b) => a - b);
+
+    // Fetch forecast data (up to 16 days ahead)
+    const forecastMetrics = forecastMetricMap[metric] || metric;
+    const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LATITUDE}&longitude=${LONGITUDE}&daily=${forecastMetrics}&timezone=Europe/London&forecast_days=16&past_days=7`;
+
+    let forecastData = {};
+    let recentData = {};
+
+    try {
+      const forecastResponse = await fetch(forecastUrl);
+      if (forecastResponse.ok) {
+        const forecast = await forecastResponse.json();
+        const today = new Date().toISOString().split('T')[0];
+
+        forecast.daily.time.forEach((date, index) => {
+          const monthDay = date.substring(5);
+          let value;
+
+          // Handle mean temperature calculation
+          if (metric === 'temperature_2m_mean') {
+            const max = forecast.daily.temperature_2m_max[index];
+            const min = forecast.daily.temperature_2m_min[index];
+            value = (max + min) / 2;
+          } else {
+            value = forecast.daily[metric][index];
+          }
+
+          if (value !== null) {
+            if (date < today) {
+              // Recent past data
+              recentData[monthDay] = value;
+            } else {
+              // Future forecast
+              forecastData[monthDay] = value;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Failed to fetch forecast:', e);
+    }
 
     res.status(200).json({
       success: true,
       data: caveData,
       overlayData,
       historicalYears,
-      overlayYears
+      overlayYears,
+      forecastData,
+      recentData
     });
   } catch (error) {
     console.error('Error fetching cave data:', error);

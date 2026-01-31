@@ -181,7 +181,7 @@ export default function Home() {
   };
 
   const processCaveData = (result) => {
-    const { data, overlayData, overlayYears } = result;
+    const { data, overlayData, overlayYears, forecastData, recentData } = result;
 
     // Store available overlay years for the UI
     setAvailableOverlayYears(overlayYears);
@@ -196,8 +196,8 @@ export default function Home() {
     const currentMonth = today.getMonth() + 1;
     const currentDay = today.getDate();
 
-    // Create rolling year view: 1 month back, 11 months forward
-    const startMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    // Create rolling year view: 6 months back, 6 months forward
+    const startMonth = ((currentMonth - 7 + 12) % 12) + 1; // 6 months back
     const orderedMonths = [];
     for (let i = 0; i < 12; i++) {
       const m = ((startMonth - 1 + i) % 12) + 1;
@@ -211,6 +211,8 @@ export default function Home() {
     const p75Data = [];
     const maxData = [];
     const overlayDataPoints = {};
+    const forecastDataPoints = [];
+    const recentDataPoints = [];
 
     overlayYears.forEach(year => {
       overlayDataPoints[year] = [];
@@ -251,6 +253,20 @@ export default function Home() {
           }
         });
 
+        // Add forecast data points
+        if (forecastData && forecastData[monthDay] !== undefined) {
+          forecastDataPoints.push(forecastData[monthDay]);
+        } else {
+          forecastDataPoints.push(null);
+        }
+
+        // Add recent actual data points
+        if (recentData && recentData[monthDay] !== undefined) {
+          recentDataPoints.push(recentData[monthDay]);
+        } else {
+          recentDataPoints.push(null);
+        }
+
         // Track today's position
         if (month === currentMonth && day === currentDay) {
           todayIndex = dayCounter;
@@ -267,14 +283,16 @@ export default function Home() {
       maxData,
       overlayDataPoints,
       overlayYears,
-      todayIndex
+      todayIndex,
+      forecastDataPoints,
+      recentDataPoints
     });
   };
 
   const getCaveChartData = () => {
     if (!caveData) return null;
 
-    const { labels, minData, p25Data, p75Data, maxData, overlayDataPoints } = caveData;
+    const { labels, minData, p25Data, p75Data, maxData, overlayDataPoints, forecastDataPoints, recentDataPoints } = caveData;
 
     return {
       labels,
@@ -288,7 +306,7 @@ export default function Home() {
           fill: '+1',
           pointRadius: 0,
           tension: 0.3,
-          order: 4
+          order: 6
         },
         // 75th percentile line
         {
@@ -299,7 +317,7 @@ export default function Home() {
           fill: '+1',
           pointRadius: 0,
           tension: 0.3,
-          order: 3
+          order: 5
         },
         // 25th percentile line
         {
@@ -310,7 +328,7 @@ export default function Home() {
           fill: '+1',
           pointRadius: 0,
           tension: 0.3,
-          order: 2
+          order: 4
         },
         // Min line (bottom of grey band)
         {
@@ -321,7 +339,32 @@ export default function Home() {
           fill: false,
           pointRadius: 0,
           tension: 0.3,
+          order: 3
+        },
+        // Recent actual weather (solid yellow line)
+        {
+          label: 'Recent Actual',
+          data: recentDataPoints || [],
+          borderColor: '#ffff00',
+          backgroundColor: 'transparent',
+          borderWidth: 3,
+          fill: false,
+          pointRadius: 0,
+          tension: 0.3,
           order: 1
+        },
+        // Forecast (dashed cyan line)
+        {
+          label: 'Forecast',
+          data: forecastDataPoints || [],
+          borderColor: '#00ffff',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [8, 4],
+          fill: false,
+          pointRadius: 0,
+          tension: 0.3,
+          order: 0
         },
         // Overlay year
         {
@@ -334,7 +377,7 @@ export default function Home() {
           fill: false,
           pointRadius: 0,
           tension: 0.3,
-          order: 0
+          order: 2
         }
       ]
     };
@@ -869,7 +912,9 @@ export default function Home() {
               <ul style={{ color: '#ccc', lineHeight: '1.8' }}>
                 <li><strong style={{ color: 'white' }}>White band (middle 50%):</strong> Normal range - values between 25th and 75th percentile</li>
                 <li><strong style={{ color: '#888' }}>Grey bands (outer 25%):</strong> Unusual range - below 25th or above 75th percentile</li>
-                <li><strong style={{ color: '#00ff00' }}>Green dotted line:</strong> Selected year ({caveOverlayYear}) actual values</li>
+                <li><strong style={{ color: '#ffff00' }}>Yellow solid line:</strong> Recent actual weather (last 7 days)</li>
+                <li><strong style={{ color: '#00ffff' }}>Cyan dashed line:</strong> Weather forecast (next 16 days)</li>
+                <li><strong style={{ color: '#00ff00' }}>Green dotted line:</strong> Selected year ({caveOverlayYear}) for comparison</li>
                 <li><strong style={{ color: '#ff0000' }}>Red dashed line:</strong> Today's date</li>
               </ul>
             </div>
