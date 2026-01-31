@@ -25,7 +25,8 @@ ChartJS.register(
 );
 
 export default function Home() {
-  const [selectedMonths, setSelectedMonths] = useState([]);
+  const [startDate, setStartDate] = useState({ month: 1, day: 1 });
+  const [endDate, setEndDate] = useState({ month: 12, day: 31 });
   const [selectedYears, setSelectedYears] = useState([]);
   const [selectedMetric, setSelectedMetric] = useState('temperature_2m_mean');
   const [chartData, setChartData] = useState(null);
@@ -34,18 +35,18 @@ export default function Home() {
   const [grayedYears, setGrayedYears] = useState(new Set());
 
   const months = [
-    { name: 'January', num: 1 },
-    { name: 'February', num: 2 },
-    { name: 'March', num: 3 },
-    { name: 'April', num: 4 },
-    { name: 'May', num: 5 },
-    { name: 'June', num: 6 },
-    { name: 'July', num: 7 },
-    { name: 'August', num: 8 },
-    { name: 'September', num: 9 },
-    { name: 'October', num: 10 },
-    { name: 'November', num: 11 },
-    { name: 'December', num: 12 }
+    { name: 'Jan', num: 1, days: 31 },
+    { name: 'Feb', num: 2, days: 29 },
+    { name: 'Mar', num: 3, days: 31 },
+    { name: 'Apr', num: 4, days: 30 },
+    { name: 'May', num: 5, days: 31 },
+    { name: 'Jun', num: 6, days: 30 },
+    { name: 'Jul', num: 7, days: 31 },
+    { name: 'Aug', num: 8, days: 31 },
+    { name: 'Sep', num: 9, days: 30 },
+    { name: 'Oct', num: 10, days: 31 },
+    { name: 'Nov', num: 11, days: 30 },
+    { name: 'Dec', num: 12, days: 31 }
   ];
 
   const metrics = [
@@ -65,12 +66,14 @@ export default function Home() {
     '#5f27cd', '#00d2d3', '#1dd1a1'
   ];
 
-  const toggleMonth = (monthNum) => {
-    setSelectedMonths(prev =>
-      prev.includes(monthNum)
-        ? prev.filter(m => m !== monthNum)
-        : [...prev, monthNum].sort((a, b) => a - b)
-    );
+  const getDaysInMonth = (month) => {
+    return months.find(m => m.num === month)?.days || 31;
+  };
+
+  const formatDateRange = () => {
+    const startMonth = months.find(m => m.num === startDate.month)?.name;
+    const endMonth = months.find(m => m.num === endDate.month)?.name;
+    return `${startMonth} ${startDate.day} - ${endMonth} ${endDate.day}`;
   };
 
   const toggleYear = (year) => {
@@ -90,8 +93,8 @@ export default function Home() {
   };
 
   const generateChart = async () => {
-    if (selectedMonths.length === 0 || selectedYears.length === 0) {
-      alert('Please select at least one month and one year');
+    if (selectedYears.length === 0) {
+      alert('Please select at least one year');
       return;
     }
 
@@ -103,7 +106,8 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          months: selectedMonths,
+          startDate,
+          endDate,
           years: selectedYears,
           metrics: [selectedMetric]
         })
@@ -229,9 +233,9 @@ export default function Home() {
     if (!chartData) return;
 
     const metric = metrics.find(m => m.id === selectedMetric);
-    const monthNames = selectedMonths.map(m => months[m - 1].name).join('+');
-    
-    let csv = `Winchester Weather Daily Data - ${monthNames}\n`;
+    const dateRange = formatDateRange().replace(/ /g, '_');
+
+    let csv = `Winchester Weather Daily Data - ${formatDateRange()}\n`;
     csv += `Metric: ${metric.name} (${metric.unit})\n\n`;
     csv += 'Date,' + selectedYears.join(',') + '\n';
 
@@ -247,7 +251,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `winchester_${selectedMetric}_${monthNames}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `winchester_${selectedMetric}_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -268,32 +272,63 @@ export default function Home() {
         {/* Controls */}
         <div style={{ padding: '30px', background: '#f8f9fa', borderBottom: '2px solid #e9ecef' }}>
           
-          {/* Months */}
+          {/* Date Range */}
           <div style={{ marginBottom: '25px' }}>
             <label style={{ display: 'block', fontWeight: '600', marginBottom: '10px', color: '#2d3748' }}>
-              📅 Select Months:
+              📅 Select Date Range:
               <span style={{ marginLeft: '10px', color: '#a0aec0', fontWeight: '400', fontSize: '0.9em' }}>
-                {selectedMonths.length === 0 ? 'None selected' : selectedMonths.map(m => months[m - 1].name).join(', ')}
+                {formatDateRange()}
               </span>
             </label>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              {months.map(month => (
-                <button
-                  key={month.num}
-                  onClick={() => toggleMonth(month.num)}
-                  style={{
-                    padding: '8px 16px',
-                    border: '2px solid #e2e8f0',
-                    background: selectedMonths.includes(month.num) ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white',
-                    color: selectedMonths.includes(month.num) ? 'white' : 'black',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '14px'
+            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* Start Date */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontWeight: '500', color: '#4a5568' }}>From:</span>
+                <select
+                  value={startDate.month}
+                  onChange={(e) => {
+                    const newMonth = parseInt(e.target.value);
+                    const maxDay = getDaysInMonth(newMonth);
+                    setStartDate({ month: newMonth, day: Math.min(startDate.day, maxDay) });
                   }}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '2px solid #e2e8f0', fontSize: '14px' }}
                 >
-                  {month.name}
-                </button>
-              ))}
+                  {months.map(m => <option key={m.num} value={m.num}>{m.name}</option>)}
+                </select>
+                <select
+                  value={startDate.day}
+                  onChange={(e) => setStartDate({ ...startDate, day: parseInt(e.target.value) })}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '2px solid #e2e8f0', fontSize: '14px' }}
+                >
+                  {Array.from({ length: getDaysInMonth(startDate.month) }, (_, i) => i + 1).map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              {/* End Date */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontWeight: '500', color: '#4a5568' }}>To:</span>
+                <select
+                  value={endDate.month}
+                  onChange={(e) => {
+                    const newMonth = parseInt(e.target.value);
+                    const maxDay = getDaysInMonth(newMonth);
+                    setEndDate({ month: newMonth, day: Math.min(endDate.day, maxDay) });
+                  }}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '2px solid #e2e8f0', fontSize: '14px' }}
+                >
+                  {months.map(m => <option key={m.num} value={m.num}>{m.name}</option>)}
+                </select>
+                <select
+                  value={endDate.day}
+                  onChange={(e) => setEndDate({ ...endDate, day: parseInt(e.target.value) })}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '2px solid #e2e8f0', fontSize: '14px' }}
+                >
+                  {Array.from({ length: getDaysInMonth(endDate.month) }, (_, i) => i + 1).map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
