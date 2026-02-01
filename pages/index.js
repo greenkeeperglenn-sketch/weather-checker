@@ -45,6 +45,30 @@ export default function Home() {
   const [caveLoading, setCaveLoading] = useState(false);
   const [availableOverlayYears, setAvailableOverlayYears] = useState([]);
 
+  // Location state
+  const [selectedLocation, setSelectedLocation] = useState('bingley');
+
+  const locations = {
+    bingley: {
+      name: 'Bingley',
+      region: 'West Yorkshire',
+      lat: 53.8475,
+      lon: -1.8397,
+      mapX: 145,  // Position on UK map
+      mapY: 120
+    },
+    winchester: {
+      name: 'Winchester',
+      region: 'Hampshire',
+      lat: 51.0632,
+      lon: -1.3080,
+      mapX: 160,
+      mapY: 220
+    }
+  };
+
+  const currentLocation = locations[selectedLocation];
+
   const months = [
     { name: 'Jan', num: 1, days: 31 },
     { name: 'Feb', num: 2, days: 29 },
@@ -120,7 +144,9 @@ export default function Home() {
           startDate,
           endDate,
           years: selectedYears,
-          metrics: [selectedMetric]
+          metrics: [selectedMetric],
+          lat: currentLocation.lat,
+          lon: currentLocation.lon
         })
       });
 
@@ -163,7 +189,11 @@ export default function Home() {
       const response = await fetch('/api/cave', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metric: selectedMetric })
+        body: JSON.stringify({
+          metric: selectedMetric,
+          lat: currentLocation.lat,
+          lon: currentLocation.lon
+        })
       });
 
       const result = await response.json();
@@ -597,7 +627,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `winchester_${selectedMetric}_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `${currentLocation.name.toLowerCase()}_${selectedMetric}_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -618,21 +648,105 @@ export default function Home() {
       <div style={{ maxWidth: '1600px', margin: '0 auto', background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
 
         {/* Header */}
-        <div style={{ background: striBrand.gradient, color: 'white', padding: '30px', textAlign: 'center', position: 'relative' }}>
-          <img
-            src="/STRIlogo.png"
-            alt="STRI Logo"
-            style={{
-              position: 'absolute',
-              top: '15px',
-              left: '30px',
-              height: '240px',
-              opacity: 0.9
-            }}
-          />
-          <h1 style={{ fontSize: '2.5em', marginBottom: '10px', fontFamily: "'Montserrat', sans-serif", fontWeight: '700' }}>Winchester Weather - Daily Charts</h1>
-          <p style={{ fontFamily: "'Montserrat', sans-serif" }}>Visualize daily weather patterns across months and years</p>
-          <p style={{ fontSize: '0.9em', marginTop: '10px', fontFamily: "'Montserrat', sans-serif" }}>Location: 51.0632°N, 1.3080°W | Winchester, UK</p>
+        <div style={{ background: striBrand.gradient, color: 'white', padding: '30px', position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Logo */}
+            <img
+              src="/STRIlogo.png"
+              alt="STRI Logo"
+              style={{
+                height: '120px',
+                opacity: 0.95
+              }}
+            />
+
+            {/* Title */}
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <h1 style={{ fontSize: '2.5em', marginBottom: '10px', fontFamily: "'Montserrat', sans-serif", fontWeight: '700' }}>STRI WeatherWatch</h1>
+              <p style={{ fontFamily: "'Montserrat', sans-serif" }}>Visualize daily weather patterns across months and years</p>
+              <p style={{ fontSize: '0.9em', marginTop: '10px', fontFamily: "'Montserrat', sans-serif" }}>
+                Current: {currentLocation.name}, {currentLocation.region} | {currentLocation.lat.toFixed(4)}°N, {Math.abs(currentLocation.lon).toFixed(4)}°W
+              </p>
+            </div>
+
+            {/* UK Map Location Selector */}
+            <div style={{
+              background: 'rgba(255,255,255,0.15)',
+              borderRadius: '12px',
+              padding: '15px',
+              minWidth: '200px'
+            }}>
+              <p style={{ fontSize: '0.8em', marginBottom: '10px', textAlign: 'center', fontWeight: '600' }}>Select Location</p>
+              <svg viewBox="0 0 300 350" style={{ width: '170px', height: '200px' }}>
+                {/* UK Outline - simplified */}
+                <path
+                  d="M140,320 L120,280 L100,260 L90,220 L100,180 L90,160 L100,140 L90,120 L100,100 L120,80 L140,60 L160,40 L180,30 L200,40 L210,60 L200,80 L190,100 L200,120 L210,140 L200,160 L210,180 L200,200 L210,220 L200,240 L180,260 L170,280 L160,300 L140,320 Z"
+                  fill="rgba(255,255,255,0.3)"
+                  stroke="rgba(255,255,255,0.6)"
+                  strokeWidth="2"
+                />
+                {/* Scotland */}
+                <path
+                  d="M120,80 L140,60 L160,40 L180,30 L200,40 L210,60 L200,80 L180,90 L160,85 L140,90 L120,80 Z"
+                  fill="rgba(255,255,255,0.2)"
+                  stroke="rgba(255,255,255,0.4)"
+                  strokeWidth="1"
+                />
+
+                {/* Bingley marker */}
+                <g
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setSelectedLocation('bingley')}
+                >
+                  <circle
+                    cx="145"
+                    cy="145"
+                    r={selectedLocation === 'bingley' ? 14 : 10}
+                    fill={selectedLocation === 'bingley' ? striBrand.accent : 'rgba(255,255,255,0.7)'}
+                    stroke={selectedLocation === 'bingley' ? '#fff' : 'rgba(255,255,255,0.9)'}
+                    strokeWidth={selectedLocation === 'bingley' ? 3 : 2}
+                  />
+                  <text
+                    x="145"
+                    y="170"
+                    textAnchor="middle"
+                    fill="white"
+                    fontSize="11"
+                    fontWeight={selectedLocation === 'bingley' ? '700' : '500'}
+                    fontFamily="Montserrat, sans-serif"
+                  >
+                    Bingley
+                  </text>
+                </g>
+
+                {/* Winchester marker */}
+                <g
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setSelectedLocation('winchester')}
+                >
+                  <circle
+                    cx="160"
+                    cy="245"
+                    r={selectedLocation === 'winchester' ? 14 : 10}
+                    fill={selectedLocation === 'winchester' ? striBrand.accent : 'rgba(255,255,255,0.7)'}
+                    stroke={selectedLocation === 'winchester' ? '#fff' : 'rgba(255,255,255,0.9)'}
+                    strokeWidth={selectedLocation === 'winchester' ? 3 : 2}
+                  />
+                  <text
+                    x="160"
+                    y="270"
+                    textAnchor="middle"
+                    fill="white"
+                    fontSize="11"
+                    fontWeight={selectedLocation === 'winchester' ? '700' : '500'}
+                    fontFamily="Montserrat, sans-serif"
+                  >
+                    Winchester
+                  </text>
+                </g>
+              </svg>
+            </div>
+          </div>
         </div>
 
         {/* Mode Toggle */}

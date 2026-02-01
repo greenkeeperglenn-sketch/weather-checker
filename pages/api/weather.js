@@ -1,13 +1,14 @@
 // pages/api/weather.js
 export default async function handler(req, res) {
-  const { startDate, endDate, years, metrics } = req.body;
+  const { startDate, endDate, years, metrics, lat, lon } = req.body;
 
   if (!startDate || !endDate || !years || !metrics) {
     return res.status(400).json({ error: 'Missing required parameters' });
   }
 
-  const LATITUDE = 51.0632;
-  const LONGITUDE = -1.3080;
+  // Use provided coordinates or default to Bingley
+  const LATITUDE = lat || 53.8475;
+  const LONGITUDE = lon || -1.8397;
 
   try {
     const results = {};

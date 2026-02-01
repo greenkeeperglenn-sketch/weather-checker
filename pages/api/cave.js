@@ -1,13 +1,14 @@
 // pages/api/cave.js
 export default async function handler(req, res) {
-  const { metric } = req.body;
+  const { metric, lat, lon } = req.body;
 
   if (!metric) {
     return res.status(400).json({ error: 'Missing required metric parameter' });
   }
 
-  const LATITUDE = 51.0632;
-  const LONGITUDE = -1.3080;
+  // Use provided coordinates or default to Bingley
+  const LATITUDE = lat || 53.8475;
+  const LONGITUDE = lon || -1.8397;
 
   // Map archive metrics to forecast metrics (they use slightly different names)
   const forecastMetricMap = {
