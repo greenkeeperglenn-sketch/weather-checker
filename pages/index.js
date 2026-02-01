@@ -105,10 +105,25 @@ export default function Home() {
     return months.find(m => m.num === month)?.days || 31;
   };
 
+  // Check if date range crosses year boundary (e.g., Oct-Jan)
+  const isCrossYearRange = () => {
+    return endDate.month < startDate.month ||
+           (endDate.month === startDate.month && endDate.day < startDate.day);
+  };
+
   const formatDateRange = () => {
     const startMonth = months.find(m => m.num === startDate.month)?.name;
     const endMonth = months.find(m => m.num === endDate.month)?.name;
-    return `${startMonth} ${startDate.day} - ${endMonth} ${endDate.day}`;
+    const crossYear = isCrossYearRange();
+    return `${startMonth} ${startDate.day} - ${endMonth} ${endDate.day}${crossYear ? ' (spans year)' : ''}`;
+  };
+
+  // Format year label for cross-year ranges (e.g., "23/24" for Oct 2023 - Jan 2024)
+  const formatYearLabel = (year) => {
+    if (isCrossYearRange()) {
+      return `${String(year).slice(-2)}/${String(year + 1).slice(-2)}`;
+    }
+    return year.toString();
   };
 
   const toggleYear = (year) => {
@@ -169,14 +184,15 @@ export default function Home() {
     const labels = data[firstYear].dates;
 
     const datasets = selectedYears.map((year, index) => ({
-      label: year.toString(),
+      label: formatYearLabel(year),
       data: data[year][selectedMetric],
       borderColor: yearColors[index % yearColors.length],
       backgroundColor: yearColors[index % yearColors.length] + '40',
       borderWidth: 2,
       pointRadius: 0,
       pointHoverRadius: 4,
-      tension: 0.1
+      tension: 0.1,
+      yearNum: year // Store original year for legend click handling
     }));
 
     setChartData({ labels, datasets, rawData: data });
@@ -534,7 +550,7 @@ export default function Home() {
             font: { family: "'Montserrat', sans-serif", weight: '500' },
             generateLabels: (chart) => {
               return chart.data.datasets.map((dataset, index) => {
-                const year = parseInt(dataset.label);
+                const year = dataset.yearNum || parseInt(dataset.label);
                 const isGrayed = grayedYears.has(year);
                 return {
                   text: dataset.label,
@@ -542,13 +558,14 @@ export default function Home() {
                   strokeStyle: isGrayed ? 'rgba(200, 200, 200, 0.3)' : yearColors[index % yearColors.length],
                   lineWidth: 2,
                   hidden: false,
-                  index: index
+                  index: index,
+                  yearNum: year
                 };
               });
             }
           },
           onClick: (e, legendItem, legend) => {
-            const year = parseInt(legendItem.text);
+            const year = legendItem.yearNum || parseInt(legendItem.text);
             const newGrayedYears = new Set(grayedYears);
             if (newGrayedYears.has(year)) {
               newGrayedYears.delete(year);
@@ -559,7 +576,7 @@ export default function Home() {
 
             const chart = legend.chart;
             chart.data.datasets.forEach((dataset, index) => {
-              const datasetYear = parseInt(dataset.label);
+              const datasetYear = dataset.yearNum || parseInt(dataset.label);
               const isGrayed = newGrayedYears.has(datasetYear);
 
               dataset.borderColor = isGrayed
