@@ -195,11 +195,28 @@ export default function Home() {
     // Find the start index for accumulation based on accStartDate
     const findAccStartIndex = () => {
       if (!useAccStartDate) return 0;
-      const targetDate = `${String(accStartDate.month).padStart(2, '0')}-${String(accStartDate.day).padStart(2, '0')}`;
       const dates = data[firstYear].dates;
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const targetMonthName = monthNames[accStartDate.month - 1];
+      const targetDay = accStartDate.day;
+      // Build target string to match "Mar 18" format
+      const targetStr = `${targetMonthName} ${targetDay}`;
+
       for (let i = 0; i < dates.length; i++) {
-        // dates are in format like "01-15" (MM-DD)
-        if (dates[i] === targetDate) return i;
+        // Direct string match (dates are in "Mar 18" format)
+        if (dates[i] === targetStr) return i;
+        // Also try case-insensitive match
+        if (dates[i].toLowerCase() === targetStr.toLowerCase()) return i;
+      }
+      // Fallback: try to find by parsing
+      for (let i = 0; i < dates.length; i++) {
+        const parts = dates[i].split(' ');
+        if (parts.length === 2) {
+          const monthStr = parts[0];
+          const day = parseInt(parts[1]);
+          const monthIdx = monthNames.findIndex(m => m.toLowerCase() === monthStr.toLowerCase());
+          if (monthIdx + 1 === accStartDate.month && day === targetDay) return i;
+        }
       }
       return 0;
     };
