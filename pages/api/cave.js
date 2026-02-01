@@ -1,4 +1,26 @@
 // pages/api/cave.js
+
+// Calculated metrics that derive from temperature_2m_mean
+const calculatedMetrics = ['gdd0', 'gdd6', 'growth_potential'];
+
+// Growth Potential constants
+const TOPT = 20;  // Optimal temperature
+const S = 5.5;    // Spread parameter
+
+// Calculate derived metric value from mean temperature
+function calculateDerivedValue(metric, tavg) {
+  switch (metric) {
+    case 'gdd0':
+      return Math.max(0, tavg);
+    case 'gdd6':
+      return Math.max(0, tavg - 6);
+    case 'growth_potential':
+      return Math.exp(-0.5 * Math.pow((tavg - TOPT) / S, 2));
+    default:
+      return null;
+  }
+}
+
 export default async function handler(req, res) {
   const { metric, lat, lon } = req.body;
 
@@ -9,6 +31,10 @@ export default async function handler(req, res) {
   // Use provided coordinates or default to Bingley
   const LATITUDE = lat || 53.8475;
   const LONGITUDE = lon || -1.8397;
+
+  // Check if this is a calculated metric
+  const isCalculated = calculatedMetrics.includes(metric);
+  const apiMetric = isCalculated ? 'temperature_2m_mean' : metric;
 
   // Map archive metrics to forecast metrics (they use slightly different names)
   const forecastMetricMap = {
@@ -31,7 +57,7 @@ export default async function handler(req, res) {
       const startDate = `${year}-01-01`;
       const endDate = `${year}-12-31`;
 
-      const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${LATITUDE}&longitude=${LONGITUDE}&start_date=${startDate}&end_date=${endDate}&daily=${metric}&timezone=Europe/London`;
+      const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${LATITUDE}&longitude=${LONGITUDE}&start_date=${startDate}&end_date=${endDate}&daily=${apiMetric}&timezone=Europe/London`;
 
       const response = await fetch(url);
 
@@ -48,7 +74,13 @@ export default async function handler(req, res) {
         if (!allYearsData[monthDay]) {
           allYearsData[monthDay] = [];
         }
-        const value = data.daily[metric][index];
+        let value = data.daily[apiMetric][index];
+
+        // Calculate derived value if needed
+        if (isCalculated && value !== null) {
+          value = calculateDerivedValue(metric, value);
+        }
+
         if (value !== null) {
           allYearsData[monthDay].push({ year, value });
         }
@@ -107,14 +139,20 @@ export default async function handler(req, res) {
     const recentEndDate = today.toISOString().split('T')[0];
 
     try {
-      const recentUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${LATITUDE}&longitude=${LONGITUDE}&start_date=${recentStartDate}&end_date=${recentEndDate}&daily=${metric}&timezone=Europe/London`;
+      const recentUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${LATITUDE}&longitude=${LONGITUDE}&start_date=${recentStartDate}&end_date=${recentEndDate}&daily=${apiMetric}&timezone=Europe/London`;
       const recentResponse = await fetch(recentUrl);
 
       if (recentResponse.ok) {
         const recent = await recentResponse.json();
         recent.daily.time.forEach((date, index) => {
           const monthDay = date.substring(5);
-          const value = recent.daily[metric][index];
+          let value = recent.daily[apiMetric][index];
+
+          // Calculate derived value if needed
+          if (isCalculated && value !== null) {
+            value = calculateDerivedValue(metric, value);
+          }
+
           if (value !== null) {
             recentData[monthDay] = value;
           }
@@ -125,7 +163,7 @@ export default async function handler(req, res) {
     }
 
     // Fetch forecast data (up to 16 days ahead)
-    const forecastMetrics = forecastMetricMap[metric] || metric;
+    const forecastMetrics = forecastMetricMap[apiMetric] || apiMetric;
     const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LATITUDE}&longitude=${LONGITUDE}&daily=${forecastMetrics}&timezone=Europe/London&forecast_days=16`;
 
     let forecastData = {};
@@ -139,13 +177,18 @@ export default async function handler(req, res) {
           const monthDay = date.substring(5);
           let value;
 
-          // Handle mean temperature calculation
-          if (metric === 'temperature_2m_mean') {
+          // Handle mean temperature calculation from forecast
+          if (apiMetric === 'temperature_2m_mean') {
             const max = forecast.daily.temperature_2m_max[index];
             const min = forecast.daily.temperature_2m_min[index];
             value = (max + min) / 2;
           } else {
-            value = forecast.daily[metric][index];
+            value = forecast.daily[apiMetric][index];
+          }
+
+          // Calculate derived value if needed
+          if (isCalculated && value !== null) {
+            value = calculateDerivedValue(metric, value);
           }
 
           if (value !== null) {

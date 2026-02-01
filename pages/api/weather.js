@@ -1,4 +1,21 @@
 // pages/api/weather.js
+
+// Calculated metrics that derive from temperature_2m_mean
+const calculatedMetrics = ['gdd0', 'gdd6', 'growth_potential'];
+
+// Growth Potential constants
+const TOPT = 20;  // Optimal temperature
+const S = 5.5;    // Spread parameter
+
+// Calculate derived metrics from mean temperature
+function calculateDerivedMetrics(tavg) {
+  return {
+    gdd0: Math.max(0, tavg),                                    // GDD base 0
+    gdd6: Math.max(0, tavg - 6),                                // GDD base 6
+    growth_potential: Math.exp(-0.5 * Math.pow((tavg - TOPT) / S, 2))  // Growth Potential
+  };
+}
+
 export default async function handler(req, res) {
   const { startDate, endDate, years, metrics, lat, lon } = req.body;
 
@@ -14,7 +31,17 @@ export default async function handler(req, res) {
   const isCrossYear = endDate.month < startDate.month ||
     (endDate.month === startDate.month && endDate.day < startDate.day);
 
-  const metricsStr = metrics.join(',');
+  // Separate calculated vs API metrics
+  const requestedCalculated = metrics.filter(m => calculatedMetrics.includes(m));
+  const apiMetrics = metrics.filter(m => !calculatedMetrics.includes(m));
+
+  // If any calculated metrics requested, ensure we fetch temperature_2m_mean
+  const needsTemp = requestedCalculated.length > 0;
+  if (needsTemp && !apiMetrics.includes('temperature_2m_mean')) {
+    apiMetrics.push('temperature_2m_mean');
+  }
+
+  const metricsStr = apiMetrics.join(',');
 
   try {
     const results = {};
@@ -24,6 +51,31 @@ export default async function handler(req, res) {
       metrics.forEach(metric => {
         filteredData[metric] = [];
       });
+
+      const processData = (data) => {
+        data.daily.time.forEach((date, index) => {
+          const dateObj = new Date(date);
+          const monthName = dateObj.toLocaleDateString('en-GB', { month: 'short' });
+          const day = dateObj.getDate();
+          filteredData.dates.push(`${monthName} ${day}`);
+
+          // Add API metrics
+          apiMetrics.forEach(metric => {
+            if (metrics.includes(metric)) {
+              filteredData[metric].push(data.daily[metric][index]);
+            }
+          });
+
+          // Calculate derived metrics if needed
+          if (requestedCalculated.length > 0) {
+            const tavg = data.daily.temperature_2m_mean[index];
+            const derived = calculateDerivedMetrics(tavg);
+            requestedCalculated.forEach(metric => {
+              filteredData[metric].push(derived[metric]);
+            });
+          }
+        });
+      };
 
       if (isCrossYear) {
         // Cross-year range: fetch from year (startDate to Dec 31) and year+1 (Jan 1 to endDate)
@@ -40,18 +92,7 @@ export default async function handler(req, res) {
         }
 
         const data1 = await response1.json();
-
-        // Add first part data
-        data1.daily.time.forEach((date, index) => {
-          const dateObj = new Date(date);
-          const monthName = dateObj.toLocaleDateString('en-GB', { month: 'short' });
-          const day = dateObj.getDate();
-          filteredData.dates.push(`${monthName} ${day}`);
-
-          metrics.forEach(metric => {
-            filteredData[metric].push(data1.daily[metric][index]);
-          });
-        });
+        processData(data1);
 
         // Part 2: Following year (e.g., Jan 1 to Jan 31 of 2024)
         const nextYear = year + 1;
@@ -66,18 +107,7 @@ export default async function handler(req, res) {
         }
 
         const data2 = await response2.json();
-
-        // Add second part data
-        data2.daily.time.forEach((date, index) => {
-          const dateObj = new Date(date);
-          const monthName = dateObj.toLocaleDateString('en-GB', { month: 'short' });
-          const day = dateObj.getDate();
-          filteredData.dates.push(`${monthName} ${day}`);
-
-          metrics.forEach(metric => {
-            filteredData[metric].push(data2.daily[metric][index]);
-          });
-        });
+        processData(data2);
 
       } else {
         // Normal same-year range
@@ -92,17 +122,7 @@ export default async function handler(req, res) {
         }
 
         const data = await response.json();
-
-        data.daily.time.forEach((date, index) => {
-          const dateObj = new Date(date);
-          const monthName = dateObj.toLocaleDateString('en-GB', { month: 'short' });
-          const day = dateObj.getDate();
-          filteredData.dates.push(`${monthName} ${day}`);
-
-          metrics.forEach(metric => {
-            filteredData[metric].push(data.daily[metric][index]);
-          });
-        });
+        processData(data);
       }
 
       results[year] = filteredData;

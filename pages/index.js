@@ -91,6 +91,9 @@ export default function Home() {
     { id: 'precipitation_sum', name: 'Precipitation', unit: 'mm' },
     { id: 'sunshine_duration', name: 'Sunshine Duration', unit: 'seconds' },
     { id: 'wind_speed_10m_max', name: 'Max Wind Speed', unit: 'km/h' },
+    { id: 'gdd0', name: 'GDD (Base 0°C)', unit: '°C days', calculated: true },
+    { id: 'gdd6', name: 'GDD (Base 6°C)', unit: '°C days', calculated: true },
+    { id: 'growth_potential', name: 'Growth Potential', unit: 'GP', calculated: true },
   ];
 
   const years = Array.from({ length: 12 }, (_, i) => 2014 + i);
