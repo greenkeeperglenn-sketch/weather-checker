@@ -48,6 +48,19 @@ export default function Home() {
   // Location state
   const [selectedLocation, setSelectedLocation] = useState('bingley');
 
+  // Debug mode for finding map coordinates
+  const [debugCoords, setDebugCoords] = useState(null);
+
+  const handleMapClick = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const percentX = ((x / rect.width) * 100).toFixed(1);
+    const percentY = ((y / rect.height) * 100).toFixed(1);
+    setDebugCoords({ x: percentX, y: percentY, px: Math.round(x), py: Math.round(y) });
+    console.log(`Clicked: top: '${percentY}%', left: '${percentX}%' (${Math.round(x)}px, ${Math.round(y)}px)`);
+  };
+
   const locations = {
     bingley: {
       name: 'Bingley',
@@ -696,7 +709,14 @@ export default function Home() {
               padding: '10px'
             }}>
               <p style={{ fontSize: '0.8em', marginBottom: '8px', textAlign: 'center', fontWeight: '600' }}>Select Location</p>
-              <div style={{ position: 'relative', width: '180px', height: '220px' }}>
+              {debugCoords && (
+                <div style={{ fontSize: '9px', background: '#000', color: '#0f0', padding: '4px', marginBottom: '4px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                  top: '{debugCoords.y}%', left: '{debugCoords.x}%'
+                </div>
+              )}
+              <div
+                onClick={handleMapClick}
+                style={{ position: 'relative', width: '180px', height: '220px', cursor: 'crosshair' }}>
                 <img
                   src="/UK_map.png"
                   alt="UK Map"
