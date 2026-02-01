@@ -48,6 +48,10 @@ export default function Home() {
   // Location state
   const [selectedLocation, setSelectedLocation] = useState('bingley');
 
+  // Accumulated chart state
+  const [accumulatedMode, setAccumulatedMode] = useState(false);
+  const [thresholdAmount, setThresholdAmount] = useState('');
+
   const locations = {
     bingley: {
       name: 'Bingley',
@@ -186,19 +190,63 @@ export default function Home() {
     const firstYear = selectedYears[0];
     const labels = data[firstYear].dates;
 
-    const datasets = selectedYears.map((year, index) => ({
-      label: formatYearLabel(year),
-      data: data[year][selectedMetric],
-      borderColor: yearColors[index % yearColors.length],
-      backgroundColor: yearColors[index % yearColors.length] + '40',
-      borderWidth: 2,
-      pointRadius: 0,
-      pointHoverRadius: 4,
-      tension: 0.1,
-      yearNum: year // Store original year for legend click handling
-    }));
+    // Calculate cumulative sum for accumulated mode
+    const calculateCumulative = (values) => {
+      let sum = 0;
+      return values.map(v => {
+        if (v !== null && v !== undefined) {
+          sum += v;
+        }
+        return sum;
+      });
+    };
 
-    setChartData({ labels, datasets, rawData: data });
+    const datasets = selectedYears.map((year, index) => {
+      const rawValues = data[year][selectedMetric];
+      const displayValues = accumulatedMode ? calculateCumulative(rawValues) : rawValues;
+
+      return {
+        label: formatYearLabel(year),
+        data: displayValues,
+        borderColor: yearColors[index % yearColors.length],
+        backgroundColor: yearColors[index % yearColors.length] + '40',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        tension: 0.1,
+        yearNum: year // Store original year for legend click handling
+      };
+    });
+
+    // Calculate threshold crossings for markers
+    let thresholdMarkers = [];
+    if (accumulatedMode && thresholdAmount && parseFloat(thresholdAmount) > 0) {
+      const threshold = parseFloat(thresholdAmount);
+      selectedYears.forEach((year, yearIndex) => {
+        const rawValues = data[year][selectedMetric];
+        const cumulative = calculateCumulative(rawValues);
+        let lastMarker = 0;
+
+        cumulative.forEach((value, dayIndex) => {
+          const nextMarker = lastMarker + threshold;
+          if (value >= nextMarker) {
+            // Find how many thresholds we've crossed
+            while (value >= lastMarker + threshold) {
+              lastMarker += threshold;
+              thresholdMarkers.push({
+                year,
+                yearIndex,
+                dayIndex,
+                value: lastMarker,
+                date: labels[dayIndex]
+              });
+            }
+          }
+        });
+      });
+    }
+
+    setChartData({ labels, datasets, rawData: data, thresholdMarkers });
   };
 
   const generateCaveGraph = async () => {
@@ -543,6 +591,34 @@ export default function Home() {
   const getChartOptions = () => {
     const metric = metrics.find(m => m.id === selectedMetric);
 
+    // Build threshold annotations if in accumulated mode with threshold
+    const annotations = {};
+    if (accumulatedMode && chartData?.thresholdMarkers?.length > 0) {
+      chartData.thresholdMarkers.forEach((marker, idx) => {
+        const color = yearColors[marker.yearIndex % yearColors.length];
+        annotations[`threshold_${idx}`] = {
+          type: 'point',
+          xValue: marker.dayIndex,
+          yValue: marker.value,
+          backgroundColor: color,
+          borderColor: '#fff',
+          borderWidth: 2,
+          radius: 8,
+        };
+        annotations[`threshold_label_${idx}`] = {
+          type: 'label',
+          xValue: marker.dayIndex,
+          yValue: marker.value,
+          content: marker.value.toString(),
+          color: '#fff',
+          backgroundColor: color,
+          font: { size: 10, weight: 'bold', family: "'Montserrat', sans-serif" },
+          padding: 4,
+          yAdjust: -20,
+        };
+      });
+    }
+
     return {
       responsive: true,
       maintainAspectRatio: false,
@@ -599,9 +675,13 @@ export default function Home() {
           bodyFont: { family: "'Montserrat', sans-serif" },
           callbacks: {
             label: (context) => {
-              return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} ${metric.unit}`;
+              const suffix = accumulatedMode ? ' (accumulated)' : '';
+              return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} ${metric.unit}${suffix}`;
             }
           }
+        },
+        annotation: {
+          annotations
         }
       },
       scales: {
@@ -617,7 +697,7 @@ export default function Home() {
           },
           title: {
             display: true,
-            text: metric.unit,
+            text: accumulatedMode ? `Accumulated ${metric.unit}` : metric.unit,
             font: { family: "'Montserrat', sans-serif", weight: '500' }
           }
         }
@@ -1054,7 +1134,7 @@ export default function Home() {
         {/* Standard Chart Display */}
         {!caveMode && chartData && (
           <div style={{ padding: '30px', fontFamily: "'Montserrat', sans-serif" }}>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
               <button
                 onClick={() => setChartType('line')}
                 style={{
@@ -1085,6 +1165,43 @@ export default function Home() {
               >
                 Bar Chart
               </button>
+
+              <div style={{ marginLeft: '20px', borderLeft: `2px solid ${striBrand.primary}`, paddingLeft: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={accumulatedMode}
+                    onChange={(e) => setAccumulatedMode(e.target.checked)}
+                    style={{ width: '18px', height: '18px', accentColor: striBrand.primary }}
+                  />
+                  <span style={{ fontWeight: '600', fontFamily: "'Montserrat', sans-serif" }}>Accumulated</span>
+                </label>
+
+                {accumulatedMode && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontWeight: '500', fontFamily: "'Montserrat', sans-serif", fontSize: '14px' }}>
+                      Mark every:
+                    </label>
+                    <input
+                      type="number"
+                      value={thresholdAmount}
+                      onChange={(e) => setThresholdAmount(e.target.value)}
+                      placeholder="e.g. 200"
+                      style={{
+                        width: '80px',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        border: `2px solid ${striBrand.primary}`,
+                        fontSize: '14px',
+                        fontFamily: "'Montserrat', sans-serif"
+                      }}
+                    />
+                    <span style={{ fontSize: '14px', color: '#666', fontFamily: "'Montserrat', sans-serif" }}>
+                      {metrics.find(m => m.id === selectedMetric)?.unit}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', position: 'relative' }}>
@@ -1100,7 +1217,10 @@ export default function Home() {
                 }}
               />
               <h3 style={{ marginBottom: '15px', fontFamily: "'Montserrat', sans-serif" }}>
-                {metrics.find(m => m.id === selectedMetric)?.name} - {formatDateRange()}
+                {accumulatedMode ? 'Accumulated ' : ''}{metrics.find(m => m.id === selectedMetric)?.name} - {formatDateRange()}
+                {accumulatedMode && thresholdAmount && (
+                  <span style={{ fontSize: '0.8em', color: '#666', fontWeight: '400' }}> (markers every {thresholdAmount})</span>
+                )}
               </h3>
               <div style={{ position: 'relative', height: '400px' }}>
                 <ChartComponent data={chartData} options={getChartOptions()} />
