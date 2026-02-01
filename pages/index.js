@@ -655,7 +655,7 @@ export default function Home() {
               src="/STRIlogo.png"
               alt="STRI Logo"
               style={{
-                height: '120px',
+                height: '180px',
                 opacity: 0.95
               }}
             />
