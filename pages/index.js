@@ -671,80 +671,84 @@ export default function Home() {
 
             {/* UK Map Location Selector */}
             <div style={{
-              background: 'rgba(255,255,255,0.15)',
+              background: 'rgba(255,255,255,0.1)',
               borderRadius: '12px',
-              padding: '15px',
-              minWidth: '200px'
+              padding: '10px'
             }}>
-              <p style={{ fontSize: '0.8em', marginBottom: '10px', textAlign: 'center', fontWeight: '600' }}>Select Location</p>
-              <svg viewBox="0 0 300 350" style={{ width: '170px', height: '200px' }}>
-                {/* UK Outline - simplified */}
-                <path
-                  d="M140,320 L120,280 L100,260 L90,220 L100,180 L90,160 L100,140 L90,120 L100,100 L120,80 L140,60 L160,40 L180,30 L200,40 L210,60 L200,80 L190,100 L200,120 L210,140 L200,160 L210,180 L200,200 L210,220 L200,240 L180,260 L170,280 L160,300 L140,320 Z"
-                  fill="rgba(255,255,255,0.3)"
-                  stroke="rgba(255,255,255,0.6)"
-                  strokeWidth="2"
+              <p style={{ fontSize: '0.8em', marginBottom: '8px', textAlign: 'center', fontWeight: '600' }}>Select Location</p>
+              <div style={{ position: 'relative', width: '180px', height: '220px' }}>
+                <img
+                  src="/UK_map.png"
+                  alt="UK Map"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    opacity: 0.9
+                  }}
                 />
-                {/* Scotland */}
-                <path
-                  d="M120,80 L140,60 L160,40 L180,30 L200,40 L210,60 L200,80 L180,90 L160,85 L140,90 L120,80 Z"
-                  fill="rgba(255,255,255,0.2)"
-                  stroke="rgba(255,255,255,0.4)"
-                  strokeWidth="1"
-                />
-
-                {/* Bingley marker */}
-                <g
-                  style={{ cursor: 'pointer' }}
+                {/* Bingley button - positioned on Yorkshire */}
+                <button
                   onClick={() => setSelectedLocation('bingley')}
-                >
-                  <circle
-                    cx="145"
-                    cy="145"
-                    r={selectedLocation === 'bingley' ? 14 : 10}
-                    fill={selectedLocation === 'bingley' ? striBrand.accent : 'rgba(255,255,255,0.7)'}
-                    stroke={selectedLocation === 'bingley' ? '#fff' : 'rgba(255,255,255,0.9)'}
-                    strokeWidth={selectedLocation === 'bingley' ? 3 : 2}
-                  />
-                  <text
-                    x="145"
-                    y="170"
-                    textAnchor="middle"
-                    fill="white"
-                    fontSize="11"
-                    fontWeight={selectedLocation === 'bingley' ? '700' : '500'}
-                    fontFamily="Montserrat, sans-serif"
-                  >
-                    Bingley
-                  </text>
-                </g>
+                  style={{
+                    position: 'absolute',
+                    top: '42%',
+                    left: '58%',
+                    transform: 'translate(-50%, -50%)',
+                    width: selectedLocation === 'bingley' ? '28px' : '22px',
+                    height: selectedLocation === 'bingley' ? '28px' : '22px',
+                    borderRadius: '50%',
+                    background: selectedLocation === 'bingley' ? striBrand.accent : 'rgba(255,255,255,0.85)',
+                    border: selectedLocation === 'bingley' ? '3px solid #fff' : '2px solid ' + striBrand.primary,
+                    cursor: 'pointer',
+                    boxShadow: selectedLocation === 'bingley' ? '0 0 12px rgba(141,198,63,0.8)' : '0 2px 6px rgba(0,0,0,0.3)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title="Bingley, West Yorkshire"
+                />
+                <span style={{
+                  position: 'absolute',
+                  top: '49%',
+                  left: '58%',
+                  transform: 'translateX(-50%)',
+                  fontSize: '10px',
+                  fontWeight: selectedLocation === 'bingley' ? '700' : '500',
+                  color: selectedLocation === 'bingley' ? '#fff' : striBrand.dark,
+                  textShadow: '0 1px 2px rgba(255,255,255,0.8)',
+                  pointerEvents: 'none'
+                }}>Bingley</span>
 
-                {/* Winchester marker */}
-                <g
-                  style={{ cursor: 'pointer' }}
+                {/* Winchester button - positioned on Hampshire */}
+                <button
                   onClick={() => setSelectedLocation('winchester')}
-                >
-                  <circle
-                    cx="160"
-                    cy="245"
-                    r={selectedLocation === 'winchester' ? 14 : 10}
-                    fill={selectedLocation === 'winchester' ? striBrand.accent : 'rgba(255,255,255,0.7)'}
-                    stroke={selectedLocation === 'winchester' ? '#fff' : 'rgba(255,255,255,0.9)'}
-                    strokeWidth={selectedLocation === 'winchester' ? 3 : 2}
-                  />
-                  <text
-                    x="160"
-                    y="270"
-                    textAnchor="middle"
-                    fill="white"
-                    fontSize="11"
-                    fontWeight={selectedLocation === 'winchester' ? '700' : '500'}
-                    fontFamily="Montserrat, sans-serif"
-                  >
-                    Winchester
-                  </text>
-                </g>
-              </svg>
+                  style={{
+                    position: 'absolute',
+                    top: '72%',
+                    left: '52%',
+                    transform: 'translate(-50%, -50%)',
+                    width: selectedLocation === 'winchester' ? '28px' : '22px',
+                    height: selectedLocation === 'winchester' ? '28px' : '22px',
+                    borderRadius: '50%',
+                    background: selectedLocation === 'winchester' ? striBrand.accent : 'rgba(255,255,255,0.85)',
+                    border: selectedLocation === 'winchester' ? '3px solid #fff' : '2px solid ' + striBrand.primary,
+                    cursor: 'pointer',
+                    boxShadow: selectedLocation === 'winchester' ? '0 0 12px rgba(141,198,63,0.8)' : '0 2px 6px rgba(0,0,0,0.3)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title="Winchester, Hampshire"
+                />
+                <span style={{
+                  position: 'absolute',
+                  top: '79%',
+                  left: '52%',
+                  transform: 'translateX(-50%)',
+                  fontSize: '10px',
+                  fontWeight: selectedLocation === 'winchester' ? '700' : '500',
+                  color: selectedLocation === 'winchester' ? '#fff' : striBrand.dark,
+                  textShadow: '0 1px 2px rgba(255,255,255,0.8)',
+                  pointerEvents: 'none'
+                }}>Winchester</span>
+              </div>
             </div>
           </div>
         </div>
