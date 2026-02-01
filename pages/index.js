@@ -374,41 +374,28 @@ export default function Home() {
     ];
 
     if (isCurrentSelected) {
-      // Show recent actual (solid) and forecast (dashed) as separate lines
-      datasets.push(
-        {
-          label: 'Actual',
-          data: recentValues,
-          borderColor: '#ff6b35',  // Bright orange - visible on black
-          backgroundColor: 'transparent',
-          borderWidth: 3,
-          fill: false,
-          pointRadius: 0,
-          tension: 0.3,
-          order: 0
-        },
-        {
-          label: 'Forecast',
-          data: forecastValues,
-          borderColor: '#ff69b4',  // Hot pink - visible on black
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          borderDash: [8, 4],
-          fill: false,
-          pointRadius: 0,
-          tension: 0.3,
-          order: 1
-        }
-      );
+      // Show recent actual and forecast as one continuous orange line
+      // Combine both into a single dataset for smooth connection
+      const combinedValues = currentDataPoints.map(d => d ? d.value : null);
+      datasets.push({
+        label: 'Current',
+        data: combinedValues,
+        borderColor: '#ff6b35',  // Bright orange - visible on black
+        backgroundColor: 'transparent',
+        borderWidth: 3,
+        fill: false,
+        pointRadius: 0,
+        tension: 0.3,
+        order: 0
+      });
     } else {
-      // Show historical year as dotted line
+      // Show historical year as solid line
       datasets.push({
         label: overlayLabel,
         data: overlayValues,
         borderColor: '#32cd32',  // Lime green - visible on black
         backgroundColor: 'transparent',
-        borderWidth: 2,
-        borderDash: [5, 5],
+        borderWidth: 3,
         fill: false,
         pointRadius: 0,
         tension: 0.3,
@@ -953,12 +940,9 @@ export default function Home() {
                 <li><strong style={{ color: 'white' }}>White band (middle 50%):</strong> Normal range - values between 25th and 75th percentile</li>
                 <li><strong style={{ color: '#888' }}>Grey bands (outer 25%):</strong> Unusual range - below 25th or above 75th percentile</li>
                 {caveOverlayYear === 'current' ? (
-                  <>
-                    <li><strong style={{ color: '#ff6b35' }}>Orange solid line:</strong> Recent actual weather (last 6 months)</li>
-                    <li><strong style={{ color: '#ff69b4' }}>Pink dashed line:</strong> Weather forecast (next 16 days)</li>
-                  </>
+                  <li><strong style={{ color: '#ff6b35' }}>Orange line:</strong> Recent weather (6 months) + forecast (16 days)</li>
                 ) : (
-                  <li><strong style={{ color: '#32cd32' }}>Lime green dotted line:</strong> {caveOverlayYear} historical data</li>
+                  <li><strong style={{ color: '#32cd32' }}>Lime green line:</strong> {caveOverlayYear} historical data</li>
                 )}
                 <li><strong style={{ color: '#ff0000' }}>Red dashed line:</strong> Today's date</li>
               </ul>
