@@ -712,8 +712,8 @@ export default function Home() {
                   onClick={() => setSelectedLocation('bingley')}
                   style={{
                     position: 'absolute',
-                    top: '48%',
-                    left: '58%',
+                    top: '47%',
+                    left: '50%',
                     transform: 'translate(-50%, -50%)',
                     width: selectedLocation === 'bingley' ? '28px' : '22px',
                     height: selectedLocation === 'bingley' ? '28px' : '22px',
@@ -728,8 +728,8 @@ export default function Home() {
                 />
                 <span style={{
                   position: 'absolute',
-                  top: '55%',
-                  left: '58%',
+                  top: '54%',
+                  left: '50%',
                   transform: 'translateX(-50%)',
                   fontSize: '10px',
                   fontWeight: selectedLocation === 'bingley' ? '700' : '500',
@@ -743,8 +743,8 @@ export default function Home() {
                   onClick={() => setSelectedLocation('winchester')}
                   style={{
                     position: 'absolute',
-                    top: '78%',
-                    left: '58%',
+                    top: '73%',
+                    left: '63%',
                     transform: 'translate(-50%, -50%)',
                     width: selectedLocation === 'winchester' ? '28px' : '22px',
                     height: selectedLocation === 'winchester' ? '28px' : '22px',
@@ -759,8 +759,8 @@ export default function Home() {
                 />
                 <span style={{
                   position: 'absolute',
-                  top: '85%',
-                  left: '58%',
+                  top: '80%',
+                  left: '63%',
                   transform: 'translateX(-50%)',
                   fontSize: '10px',
                   fontWeight: selectedLocation === 'winchester' ? '700' : '500',
