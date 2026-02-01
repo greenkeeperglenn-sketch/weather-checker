@@ -51,6 +51,8 @@ export default function Home() {
   // Accumulated chart state
   const [accumulatedMode, setAccumulatedMode] = useState(false);
   const [thresholdAmount, setThresholdAmount] = useState('');
+  const [accStartDate, setAccStartDate] = useState({ month: 1, day: 1 });
+  const [useAccStartDate, setUseAccStartDate] = useState(false);
 
   const locations = {
     bingley: {
@@ -190,10 +192,26 @@ export default function Home() {
     const firstYear = selectedYears[0];
     const labels = data[firstYear].dates;
 
+    // Find the start index for accumulation based on accStartDate
+    const findAccStartIndex = () => {
+      if (!useAccStartDate) return 0;
+      const targetDate = `${String(accStartDate.month).padStart(2, '0')}-${String(accStartDate.day).padStart(2, '0')}`;
+      const dates = data[firstYear].dates;
+      for (let i = 0; i < dates.length; i++) {
+        // dates are in format like "01-15" (MM-DD)
+        if (dates[i] === targetDate) return i;
+      }
+      return 0;
+    };
+    const accStartIndex = findAccStartIndex();
+
     // Calculate cumulative sum for accumulated mode
     const calculateCumulative = (values) => {
       let sum = 0;
-      return values.map(v => {
+      return values.map((v, idx) => {
+        if (idx < accStartIndex) {
+          return 0; // Don't accumulate before start date
+        }
         if (v !== null && v !== undefined) {
           sum += v;
         }
@@ -226,19 +244,23 @@ export default function Home() {
         const rawValues = data[year][selectedMetric];
         const cumulative = calculateCumulative(rawValues);
         let lastMarker = 0;
+        let markerCount = 0;
 
         cumulative.forEach((value, dayIndex) => {
+          if (dayIndex < accStartIndex) return; // Skip before start date
           const nextMarker = lastMarker + threshold;
           if (value >= nextMarker) {
             // Find how many thresholds we've crossed
             while (value >= lastMarker + threshold) {
               lastMarker += threshold;
+              markerCount++;
               thresholdMarkers.push({
                 year,
                 yearIndex,
                 dayIndex,
                 value: lastMarker,
-                date: labels[dayIndex]
+                date: labels[dayIndex],
+                count: markerCount
               });
             }
           }
@@ -609,12 +631,12 @@ export default function Home() {
           type: 'label',
           xValue: marker.dayIndex,
           yValue: marker.value,
-          content: marker.value.toString(),
+          content: marker.count.toString(),
           color: '#fff',
           backgroundColor: color,
-          font: { size: 10, weight: 'bold', family: "'Montserrat', sans-serif" },
-          padding: 4,
-          yAdjust: -20,
+          font: { size: 12, weight: 'bold', family: "'Montserrat', sans-serif" },
+          padding: 6,
+          yAdjust: -22,
         };
       });
     }
@@ -1178,28 +1200,66 @@ export default function Home() {
                 </label>
 
                 {accumulatedMode && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <label style={{ fontWeight: '500', fontFamily: "'Montserrat', sans-serif", fontSize: '14px' }}>
-                      Mark every:
-                    </label>
-                    <input
-                      type="number"
-                      value={thresholdAmount}
-                      onChange={(e) => setThresholdAmount(e.target.value)}
-                      placeholder="e.g. 200"
-                      style={{
-                        width: '80px',
-                        padding: '6px 10px',
-                        borderRadius: '6px',
-                        border: `2px solid ${striBrand.primary}`,
-                        fontSize: '14px',
-                        fontFamily: "'Montserrat', sans-serif"
-                      }}
-                    />
-                    <span style={{ fontSize: '14px', color: '#666', fontFamily: "'Montserrat', sans-serif" }}>
-                      {metrics.find(m => m.id === selectedMetric)?.unit}
-                    </span>
-                  </div>
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <label style={{ fontWeight: '500', fontFamily: "'Montserrat', sans-serif", fontSize: '14px' }}>
+                        Mark every:
+                      </label>
+                      <input
+                        type="number"
+                        value={thresholdAmount}
+                        onChange={(e) => setThresholdAmount(e.target.value)}
+                        placeholder="e.g. 200"
+                        style={{
+                          width: '80px',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: `2px solid ${striBrand.primary}`,
+                          fontSize: '14px',
+                          fontFamily: "'Montserrat', sans-serif"
+                        }}
+                      />
+                      <span style={{ fontSize: '14px', color: '#666', fontFamily: "'Montserrat', sans-serif" }}>
+                        {metrics.find(m => m.id === selectedMetric)?.unit}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '10px', borderLeft: '1px solid #ccc', paddingLeft: '15px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={useAccStartDate}
+                          onChange={(e) => setUseAccStartDate(e.target.checked)}
+                          style={{ width: '16px', height: '16px', accentColor: striBrand.primary }}
+                        />
+                        <span style={{ fontWeight: '500', fontFamily: "'Montserrat', sans-serif", fontSize: '14px' }}>Start from:</span>
+                      </label>
+                      {useAccStartDate && (
+                        <>
+                          <select
+                            value={accStartDate.month}
+                            onChange={(e) => {
+                              const newMonth = parseInt(e.target.value);
+                              const maxDay = getDaysInMonth(newMonth);
+                              setAccStartDate({ month: newMonth, day: Math.min(accStartDate.day, maxDay) });
+                            }}
+                            style={{ padding: '4px 8px', borderRadius: '4px', border: `1px solid ${striBrand.primary}`, fontSize: '13px' }}
+                          >
+                            {months.map(m => <option key={m.num} value={m.num}>{m.name}</option>)}
+                          </select>
+                          <select
+                            value={accStartDate.day}
+                            onChange={(e) => setAccStartDate({ ...accStartDate, day: parseInt(e.target.value) })}
+                            style={{ padding: '4px 8px', borderRadius: '4px', border: `1px solid ${striBrand.primary}`, fontSize: '13px' }}
+                          >
+                            {Array.from({ length: getDaysInMonth(accStartDate.month) }, (_, i) => i + 1).map(d => (
+                              <option key={d} value={d}>{d}</option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
