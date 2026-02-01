@@ -261,7 +261,20 @@ export default function Home() {
         const rawValues = data[year][selectedMetric];
         const cumulative = calculateCumulative(rawValues);
         let lastMarker = 0;
-        let markerCount = 0;
+        let markerCount = 1; // Start at 1 for the initial application marker
+
+        // Add marker 1 at the start date (first application)
+        if (useAccStartDate && accStartIndex < cumulative.length) {
+          thresholdMarkers.push({
+            year,
+            yearIndex,
+            dayIndex: accStartIndex,
+            value: 0, // Start value
+            date: labels[accStartIndex],
+            count: 1,
+            isStartMarker: true
+          });
+        }
 
         cumulative.forEach((value, dayIndex) => {
           if (dayIndex < accStartIndex) return; // Skip before start date
@@ -635,35 +648,67 @@ export default function Home() {
     if (accumulatedMode && chartData?.thresholdMarkers?.length > 0) {
       chartData.thresholdMarkers.forEach((marker, idx) => {
         const color = yearColors[marker.yearIndex % yearColors.length];
-        // Main marker point with accumulated value inside
-        annotations[`threshold_${idx}`] = {
-          type: 'label',
-          xValue: marker.dayIndex,
-          yValue: marker.value,
-          content: marker.value.toString(),
-          color: '#fff',
-          backgroundColor: color,
-          borderColor: '#fff',
-          borderWidth: 2,
-          borderRadius: 4,
-          font: { size: 10, weight: 'bold', family: "'Montserrat', sans-serif" },
-          padding: { x: 6, y: 4 },
-        };
-        // Count number above the marker
-        annotations[`threshold_count_${idx}`] = {
-          type: 'label',
-          xValue: marker.dayIndex,
-          yValue: marker.value,
-          content: marker.count.toString(),
-          color: color,
-          backgroundColor: 'rgba(255,255,255,0.9)',
-          borderColor: color,
-          borderWidth: 2,
-          borderRadius: 10,
-          font: { size: 11, weight: 'bold', family: "'Montserrat', sans-serif" },
-          padding: { x: 6, y: 3 },
-          yAdjust: -28,
-        };
+
+        if (marker.isStartMarker) {
+          // Start marker (application 1) - just show the count circle at the line
+          // Get the actual y value from the dataset at this point
+          const datasetIndex = marker.yearIndex;
+          const yValue = chartData.datasets[datasetIndex]?.data[marker.dayIndex] || 0;
+
+          annotations[`start_marker_${idx}`] = {
+            type: 'point',
+            xValue: marker.dayIndex,
+            yValue: yValue,
+            backgroundColor: color,
+            borderColor: '#fff',
+            borderWidth: 3,
+            radius: 10,
+          };
+          annotations[`start_count_${idx}`] = {
+            type: 'label',
+            xValue: marker.dayIndex,
+            yValue: yValue,
+            content: '1',
+            color: color,
+            backgroundColor: 'rgba(255,255,255,0.95)',
+            borderColor: color,
+            borderWidth: 2,
+            borderRadius: 10,
+            font: { size: 12, weight: 'bold', family: "'Montserrat', sans-serif" },
+            padding: { x: 7, y: 4 },
+            yAdjust: -25,
+          };
+        } else {
+          // Regular threshold marker with accumulated value
+          annotations[`threshold_${idx}`] = {
+            type: 'label',
+            xValue: marker.dayIndex,
+            yValue: marker.value,
+            content: marker.value.toString(),
+            color: '#fff',
+            backgroundColor: color,
+            borderColor: '#fff',
+            borderWidth: 2,
+            borderRadius: 4,
+            font: { size: 10, weight: 'bold', family: "'Montserrat', sans-serif" },
+            padding: { x: 6, y: 4 },
+          };
+          // Count number above the marker
+          annotations[`threshold_count_${idx}`] = {
+            type: 'label',
+            xValue: marker.dayIndex,
+            yValue: marker.value,
+            content: marker.count.toString(),
+            color: color,
+            backgroundColor: 'rgba(255,255,255,0.9)',
+            borderColor: color,
+            borderWidth: 2,
+            borderRadius: 10,
+            font: { size: 11, weight: 'bold', family: "'Montserrat', sans-serif" },
+            padding: { x: 6, y: 3 },
+            yAdjust: -28,
+          };
+        }
       });
     }
 
