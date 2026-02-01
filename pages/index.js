@@ -748,7 +748,7 @@ export default function Home() {
                 />
                 <span style={{
                   position: 'absolute',
-                  top: '57%',
+                  top: '52%',
                   left: '68.6%',
                   transform: 'translateX(-50%)',
                   fontSize: '10px',
