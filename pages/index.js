@@ -618,25 +618,34 @@ export default function Home() {
     if (accumulatedMode && chartData?.thresholdMarkers?.length > 0) {
       chartData.thresholdMarkers.forEach((marker, idx) => {
         const color = yearColors[marker.yearIndex % yearColors.length];
+        // Main marker point with accumulated value inside
         annotations[`threshold_${idx}`] = {
-          type: 'point',
+          type: 'label',
           xValue: marker.dayIndex,
           yValue: marker.value,
+          content: marker.value.toString(),
+          color: '#fff',
           backgroundColor: color,
           borderColor: '#fff',
           borderWidth: 2,
-          radius: 8,
+          borderRadius: 4,
+          font: { size: 10, weight: 'bold', family: "'Montserrat', sans-serif" },
+          padding: { x: 6, y: 4 },
         };
-        annotations[`threshold_label_${idx}`] = {
+        // Count number above the marker
+        annotations[`threshold_count_${idx}`] = {
           type: 'label',
           xValue: marker.dayIndex,
           yValue: marker.value,
           content: marker.count.toString(),
-          color: '#fff',
-          backgroundColor: color,
-          font: { size: 12, weight: 'bold', family: "'Montserrat', sans-serif" },
-          padding: 6,
-          yAdjust: -22,
+          color: color,
+          backgroundColor: 'rgba(255,255,255,0.9)',
+          borderColor: color,
+          borderWidth: 2,
+          borderRadius: 10,
+          font: { size: 11, weight: 'bold', family: "'Montserrat', sans-serif" },
+          padding: { x: 6, y: 3 },
+          yAdjust: -28,
         };
       });
     }
@@ -1091,6 +1100,82 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Accumulated Options (Standard Chart only) */}
+          {!caveMode && (
+            <div style={{ marginBottom: '25px', padding: '15px', background: '#f0f7f0', borderRadius: '8px', border: `1px solid ${striBrand.secondary}` }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: accumulatedMode ? '15px' : '0' }}>
+                <input
+                  type="checkbox"
+                  checked={accumulatedMode}
+                  onChange={(e) => setAccumulatedMode(e.target.checked)}
+                  style={{ width: '18px', height: '18px', accentColor: striBrand.primary }}
+                />
+                <span style={{ fontWeight: '600', color: '#2d3748' }}>Accumulated Mode</span>
+                <span style={{ fontSize: '0.85em', color: '#666' }}>- shows running total over time</span>
+              </label>
+
+              {accumulatedMode && (
+                <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontWeight: '500', fontSize: '14px' }}>Mark every:</label>
+                    <input
+                      type="number"
+                      value={thresholdAmount}
+                      onChange={(e) => setThresholdAmount(e.target.value)}
+                      placeholder="e.g. 200"
+                      style={{
+                        width: '80px',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        border: `2px solid ${striBrand.primary}`,
+                        fontSize: '14px'
+                      }}
+                    />
+                    <span style={{ fontSize: '14px', color: '#666' }}>
+                      {metrics.find(m => m.id === selectedMetric)?.unit}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={useAccStartDate}
+                        onChange={(e) => setUseAccStartDate(e.target.checked)}
+                        style={{ width: '16px', height: '16px', accentColor: striBrand.primary }}
+                      />
+                      <span style={{ fontWeight: '500', fontSize: '14px' }}>Start accumulation from:</span>
+                    </label>
+                    {useAccStartDate && (
+                      <>
+                        <select
+                          value={accStartDate.month}
+                          onChange={(e) => {
+                            const newMonth = parseInt(e.target.value);
+                            const maxDay = getDaysInMonth(newMonth);
+                            setAccStartDate({ month: newMonth, day: Math.min(accStartDate.day, maxDay) });
+                          }}
+                          style={{ padding: '6px 10px', borderRadius: '6px', border: `2px solid ${striBrand.primary}`, fontSize: '14px' }}
+                        >
+                          {months.map(m => <option key={m.num} value={m.num}>{m.name}</option>)}
+                        </select>
+                        <select
+                          value={accStartDate.day}
+                          onChange={(e) => setAccStartDate({ ...accStartDate, day: parseInt(e.target.value) })}
+                          style={{ padding: '6px 10px', borderRadius: '6px', border: `2px solid ${striBrand.primary}`, fontSize: '14px' }}
+                        >
+                          {Array.from({ length: getDaysInMonth(accStartDate.month) }, (_, i) => i + 1).map(d => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div style={{ display: 'flex', gap: '15px', marginTop: '20px' }}>
             {!caveMode ? (
@@ -1187,81 +1272,6 @@ export default function Home() {
               >
                 Bar Chart
               </button>
-
-              <div style={{ marginLeft: '20px', borderLeft: `2px solid ${striBrand.primary}`, paddingLeft: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={accumulatedMode}
-                    onChange={(e) => setAccumulatedMode(e.target.checked)}
-                    style={{ width: '18px', height: '18px', accentColor: striBrand.primary }}
-                  />
-                  <span style={{ fontWeight: '600', fontFamily: "'Montserrat', sans-serif" }}>Accumulated</span>
-                </label>
-
-                {accumulatedMode && (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <label style={{ fontWeight: '500', fontFamily: "'Montserrat', sans-serif", fontSize: '14px' }}>
-                        Mark every:
-                      </label>
-                      <input
-                        type="number"
-                        value={thresholdAmount}
-                        onChange={(e) => setThresholdAmount(e.target.value)}
-                        placeholder="e.g. 200"
-                        style={{
-                          width: '80px',
-                          padding: '6px 10px',
-                          borderRadius: '6px',
-                          border: `2px solid ${striBrand.primary}`,
-                          fontSize: '14px',
-                          fontFamily: "'Montserrat', sans-serif"
-                        }}
-                      />
-                      <span style={{ fontSize: '14px', color: '#666', fontFamily: "'Montserrat', sans-serif" }}>
-                        {metrics.find(m => m.id === selectedMetric)?.unit}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '10px', borderLeft: '1px solid #ccc', paddingLeft: '15px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={useAccStartDate}
-                          onChange={(e) => setUseAccStartDate(e.target.checked)}
-                          style={{ width: '16px', height: '16px', accentColor: striBrand.primary }}
-                        />
-                        <span style={{ fontWeight: '500', fontFamily: "'Montserrat', sans-serif", fontSize: '14px' }}>Start from:</span>
-                      </label>
-                      {useAccStartDate && (
-                        <>
-                          <select
-                            value={accStartDate.month}
-                            onChange={(e) => {
-                              const newMonth = parseInt(e.target.value);
-                              const maxDay = getDaysInMonth(newMonth);
-                              setAccStartDate({ month: newMonth, day: Math.min(accStartDate.day, maxDay) });
-                            }}
-                            style={{ padding: '4px 8px', borderRadius: '4px', border: `1px solid ${striBrand.primary}`, fontSize: '13px' }}
-                          >
-                            {months.map(m => <option key={m.num} value={m.num}>{m.name}</option>)}
-                          </select>
-                          <select
-                            value={accStartDate.day}
-                            onChange={(e) => setAccStartDate({ ...accStartDate, day: parseInt(e.target.value) })}
-                            style={{ padding: '4px 8px', borderRadius: '4px', border: `1px solid ${striBrand.primary}`, fontSize: '13px' }}
-                          >
-                            {Array.from({ length: getDaysInMonth(accStartDate.month) }, (_, i) => i + 1).map(d => (
-                              <option key={d} value={d}>{d}</option>
-                            ))}
-                          </select>
-                        </>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
             </div>
 
             <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', position: 'relative' }}>
