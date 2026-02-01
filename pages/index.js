@@ -624,9 +624,9 @@ export default function Home() {
             alt="STRI Logo"
             style={{
               position: 'absolute',
-              top: '20px',
+              top: '15px',
               left: '30px',
-              height: '60px',
+              height: '240px',
               opacity: 0.9
             }}
           />
@@ -957,7 +957,7 @@ export default function Home() {
                   position: 'absolute',
                   bottom: '30px',
                   right: '30px',
-                  height: '40px',
+                  height: '160px',
                   opacity: 0.15
                 }}
               />
@@ -989,7 +989,7 @@ export default function Home() {
                   position: 'absolute',
                   top: '20px',
                   right: '20px',
-                  height: '40px',
+                  height: '160px',
                   opacity: 0.7
                 }}
               />
