@@ -389,11 +389,11 @@ export default function Home() {
         order: 0
       });
     } else {
-      // Show historical year as solid line
+      // Show historical year as solid line - use STRI accent green
       datasets.push({
         label: overlayLabel,
         data: overlayValues,
-        borderColor: '#32cd32',  // Lime green - visible on black
+        borderColor: '#8dc63f',  // STRI accent lime green
         backgroundColor: 'transparent',
         borderWidth: 3,
         fill: false,
@@ -419,11 +419,14 @@ export default function Home() {
           position: 'top',
           labels: {
             color: '#ffffff',
+            font: { family: "'Montserrat', sans-serif", weight: '500' },
             filter: (item) => item.text === `${caveOverlayYear}` || item.text === 'Normal Range'
           },
           onClick: () => {} // Disable legend click
         },
         tooltip: {
+          titleFont: { family: "'Montserrat', sans-serif" },
+          bodyFont: { family: "'Montserrat', sans-serif" },
           callbacks: {
             label: (context) => {
               if (context.dataset.label === `${caveOverlayYear}`) {
@@ -448,7 +451,7 @@ export default function Home() {
                 position: 'start',
                 backgroundColor: '#ff0000',
                 color: '#ffffff',
-                font: { size: 11 }
+                font: { size: 11, family: "'Montserrat', sans-serif" }
               }
             }
           }
@@ -461,6 +464,7 @@ export default function Home() {
           },
           ticks: {
             color: '#ffffff',
+            font: { family: "'Montserrat', sans-serif" },
             maxRotation: 0,
             callback: function(val, index) {
               const label = this.getLabelForValue(val);
@@ -473,12 +477,14 @@ export default function Home() {
             color: 'rgba(255, 255, 255, 0.1)'
           },
           ticks: {
-            color: '#ffffff'
+            color: '#ffffff',
+            font: { family: "'Montserrat', sans-serif" }
           },
           title: {
             display: true,
             text: `${metric.name} (${metric.unit})`,
-            color: '#ffffff'
+            color: '#ffffff',
+            font: { family: "'Montserrat', sans-serif", weight: '500' }
           }
         }
       }
@@ -495,6 +501,7 @@ export default function Home() {
         legend: {
           position: 'top',
           labels: {
+            font: { family: "'Montserrat', sans-serif", weight: '500' },
             generateLabels: (chart) => {
               return chart.data.datasets.map((dataset, index) => {
                 const year = parseInt(dataset.label);
@@ -538,6 +545,8 @@ export default function Home() {
           }
         },
         tooltip: {
+          titleFont: { family: "'Montserrat', sans-serif" },
+          bodyFont: { family: "'Montserrat', sans-serif" },
           callbacks: {
             label: (context) => {
               return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} ${metric.unit}`;
@@ -546,11 +555,20 @@ export default function Home() {
         }
       },
       scales: {
+        x: {
+          ticks: {
+            font: { family: "'Montserrat', sans-serif" }
+          }
+        },
         y: {
           beginAtZero: selectedMetric === 'precipitation_sum',
+          ticks: {
+            font: { family: "'Montserrat', sans-serif" }
+          },
           title: {
             display: true,
-            text: metric.unit
+            text: metric.unit,
+            font: { family: "'Montserrat', sans-serif", weight: '500' }
           }
         }
       }
@@ -586,31 +604,52 @@ export default function Home() {
 
   const ChartComponent = chartType === 'line' ? Line : Bar;
 
+  // STRI brand colors
+  const striBrand = {
+    primary: '#006838',      // STRI green
+    secondary: '#00a651',    // Lighter green
+    accent: '#8dc63f',       // Lime accent
+    dark: '#004d2a',         // Dark green
+    gradient: 'linear-gradient(135deg, #006838 0%, #00a651 100%)'
+  };
+
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '20px' }}>
+    <div style={{ minHeight: '100vh', background: striBrand.gradient, padding: '20px', fontFamily: "'Montserrat', sans-serif" }}>
       <div style={{ maxWidth: '1600px', margin: '0 auto', background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
 
         {/* Header */}
-        <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', padding: '30px', textAlign: 'center' }}>
-          <h1 style={{ fontSize: '2.5em', marginBottom: '10px' }}>Winchester Weather - Daily Charts</h1>
-          <p>Visualize daily weather patterns across months and years</p>
-          <p style={{ fontSize: '0.9em', marginTop: '10px' }}>Location: 51.0632°N, 1.3080°W | Winchester, UK</p>
+        <div style={{ background: striBrand.gradient, color: 'white', padding: '30px', textAlign: 'center', position: 'relative' }}>
+          <img
+            src="/STRIlogo.png"
+            alt="STRI Logo"
+            style={{
+              position: 'absolute',
+              top: '20px',
+              left: '30px',
+              height: '60px',
+              opacity: 0.9
+            }}
+          />
+          <h1 style={{ fontSize: '2.5em', marginBottom: '10px', fontFamily: "'Montserrat', sans-serif", fontWeight: '700' }}>Winchester Weather - Daily Charts</h1>
+          <p style={{ fontFamily: "'Montserrat', sans-serif" }}>Visualize daily weather patterns across months and years</p>
+          <p style={{ fontSize: '0.9em', marginTop: '10px', fontFamily: "'Montserrat', sans-serif" }}>Location: 51.0632°N, 1.3080°W | Winchester, UK</p>
         </div>
 
         {/* Mode Toggle */}
-        <div style={{ padding: '20px 30px', background: '#f0f0f0', borderBottom: '2px solid #e0e0e0' }}>
+        <div style={{ padding: '20px 30px', background: '#f0f0f0', borderBottom: '2px solid #e0e0e0', fontFamily: "'Montserrat', sans-serif" }}>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button
               onClick={() => setCaveMode(false)}
               style={{
                 padding: '12px 24px',
-                background: !caveMode ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white',
+                background: !caveMode ? striBrand.gradient : 'white',
                 color: !caveMode ? 'white' : '#333',
-                border: '2px solid #667eea',
+                border: `2px solid ${striBrand.primary}`,
                 borderRadius: '8px',
                 cursor: 'pointer',
                 fontWeight: '600',
-                fontSize: '15px'
+                fontSize: '15px',
+                fontFamily: "'Montserrat', sans-serif"
               }}
             >
               Standard Chart
@@ -625,7 +664,8 @@ export default function Home() {
                 borderRadius: '8px',
                 cursor: 'pointer',
                 fontWeight: '600',
-                fontSize: '15px'
+                fontSize: '15px',
+                fontFamily: "'Montserrat', sans-serif"
               }}
             >
               Cave Graph (Climate Envelope)
@@ -634,7 +674,7 @@ export default function Home() {
         </div>
 
         {/* Controls */}
-        <div style={{ padding: '30px', background: '#f8f9fa', borderBottom: '2px solid #e9ecef' }}>
+        <div style={{ padding: '30px', background: '#f8f9fa', borderBottom: '2px solid #e9ecef', fontFamily: "'Montserrat', sans-serif" }}>
 
           {!caveMode ? (
             <>
@@ -708,10 +748,10 @@ export default function Home() {
                   </span>
                 </label>
                 <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                  <button onClick={selectAllYears} style={{ padding: '8px 16px', background: '#48bb78', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                  <button onClick={selectAllYears} style={{ padding: '8px 16px', background: striBrand.secondary, color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontFamily: "'Montserrat', sans-serif", fontWeight: '500' }}>
                     Select All Years
                   </button>
-                  <button onClick={clearAllYears} style={{ padding: '8px 16px', background: '#e53e3e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                  <button onClick={clearAllYears} style={{ padding: '8px 16px', background: '#e53e3e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontFamily: "'Montserrat', sans-serif", fontWeight: '500' }}>
                     Clear All
                   </button>
                 </div>
@@ -723,11 +763,13 @@ export default function Home() {
                       style={{
                         padding: '8px 16px',
                         border: '2px solid #e2e8f0',
-                        background: selectedYears.includes(year) ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white',
+                        background: selectedYears.includes(year) ? striBrand.gradient : 'white',
                         color: selectedYears.includes(year) ? 'white' : 'black',
                         borderRadius: '6px',
                         cursor: 'pointer',
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        fontFamily: "'Montserrat', sans-serif",
+                        fontWeight: '500'
                       }}
                     >
                       {year}
@@ -794,11 +836,13 @@ export default function Home() {
                   style={{
                     padding: '8px 16px',
                     border: '2px solid #e2e8f0',
-                    background: selectedMetric === metric.id ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white',
+                    background: selectedMetric === metric.id ? striBrand.gradient : 'white',
                     color: selectedMetric === metric.id ? 'white' : 'black',
                     borderRadius: '6px',
                     cursor: 'pointer',
-                    fontSize: '14px'
+                    fontSize: '14px',
+                    fontFamily: "'Montserrat', sans-serif",
+                    fontWeight: '500'
                   }}
                 >
                   {metric.name}
@@ -815,14 +859,15 @@ export default function Home() {
                   onClick={generateChart}
                   disabled={loading}
                   style={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: striBrand.gradient,
                     color: 'white',
                     border: 'none',
                     padding: '12px 30px',
                     borderRadius: '8px',
                     fontSize: '16px',
                     fontWeight: '600',
-                    cursor: loading ? 'not-allowed' : 'pointer'
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    fontFamily: "'Montserrat', sans-serif"
                   }}
                 >
                   {loading ? 'Loading...' : 'Generate Daily Chart'}
@@ -831,14 +876,15 @@ export default function Home() {
                   <button
                     onClick={downloadCSV}
                     style={{
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      background: striBrand.gradient,
                       color: 'white',
                       border: 'none',
                       padding: '12px 30px',
                       borderRadius: '8px',
                       fontSize: '16px',
                       fontWeight: '600',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      fontFamily: "'Montserrat', sans-serif"
                     }}
                   >
                     Download CSV
@@ -857,7 +903,8 @@ export default function Home() {
                   borderRadius: '8px',
                   fontSize: '16px',
                   fontWeight: '600',
-                  cursor: caveLoading ? 'not-allowed' : 'pointer'
+                  cursor: caveLoading ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Montserrat', sans-serif"
                 }}
               >
                 {caveLoading ? 'Loading Historical Data...' : 'Generate Cave Graph'}
@@ -868,18 +915,19 @@ export default function Home() {
 
         {/* Standard Chart Display */}
         {!caveMode && chartData && (
-          <div style={{ padding: '30px' }}>
+          <div style={{ padding: '30px', fontFamily: "'Montserrat', sans-serif" }}>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
               <button
                 onClick={() => setChartType('line')}
                 style={{
                   padding: '10px 20px',
-                  background: chartType === 'line' ? '#667eea' : 'white',
-                  color: chartType === 'line' ? 'white' : '#667eea',
-                  border: '2px solid #667eea',
+                  background: chartType === 'line' ? striBrand.primary : 'white',
+                  color: chartType === 'line' ? 'white' : striBrand.primary,
+                  border: `2px solid ${striBrand.primary}`,
                   borderRadius: '6px',
                   cursor: 'pointer',
-                  fontWeight: '600'
+                  fontWeight: '600',
+                  fontFamily: "'Montserrat', sans-serif"
                 }}
               >
                 Line Chart
@@ -888,20 +936,32 @@ export default function Home() {
                 onClick={() => setChartType('bar')}
                 style={{
                   padding: '10px 20px',
-                  background: chartType === 'bar' ? '#667eea' : 'white',
-                  color: chartType === 'bar' ? 'white' : '#667eea',
-                  border: '2px solid #667eea',
+                  background: chartType === 'bar' ? striBrand.primary : 'white',
+                  color: chartType === 'bar' ? 'white' : striBrand.primary,
+                  border: `2px solid ${striBrand.primary}`,
                   borderRadius: '6px',
                   cursor: 'pointer',
-                  fontWeight: '600'
+                  fontWeight: '600',
+                  fontFamily: "'Montserrat', sans-serif"
                 }}
               >
                 Bar Chart
               </button>
             </div>
 
-            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-              <h3 style={{ marginBottom: '15px' }}>
+            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', position: 'relative' }}>
+              <img
+                src="/STRIlogo.png"
+                alt="STRI"
+                style={{
+                  position: 'absolute',
+                  bottom: '30px',
+                  right: '30px',
+                  height: '40px',
+                  opacity: 0.15
+                }}
+              />
+              <h3 style={{ marginBottom: '15px', fontFamily: "'Montserrat', sans-serif" }}>
                 {metrics.find(m => m.id === selectedMetric)?.name} - {formatDateRange()}
               </h3>
               <div style={{ position: 'relative', height: '400px' }}>
@@ -909,9 +969,9 @@ export default function Home() {
               </div>
             </div>
 
-            <div style={{ background: '#e6f7ff', borderLeft: '4px solid #1890ff', padding: '20px', margin: '20px 0', borderRadius: '8px' }}>
-              <h3 style={{ color: '#0050b3', marginBottom: '10px' }}>Tip</h3>
-              <p style={{ color: '#0050b3' }}>
+            <div style={{ background: '#e8f5e9', borderLeft: `4px solid ${striBrand.secondary}`, padding: '20px', margin: '20px 0', borderRadius: '8px' }}>
+              <h3 style={{ color: striBrand.dark, marginBottom: '10px', fontFamily: "'Montserrat', sans-serif" }}>Tip</h3>
+              <p style={{ color: striBrand.dark, fontFamily: "'Montserrat', sans-serif" }}>
                 Click any year in the legend to toggle it gray. Click again to restore its color. Toggle as many years as you like to focus on specific data.
               </p>
             </div>
@@ -920,11 +980,22 @@ export default function Home() {
 
         {/* Cave Graph Display */}
         {caveMode && caveData && (
-          <div style={{ padding: '30px' }}>
-            <div style={{ background: '#1a1a2e', padding: '30px', borderRadius: '12px' }}>
-              <h3 style={{ color: 'white', marginBottom: '20px', textAlign: 'center' }}>
+          <div style={{ padding: '30px', fontFamily: "'Montserrat', sans-serif" }}>
+            <div style={{ background: '#1a1a2e', padding: '30px', borderRadius: '12px', position: 'relative' }}>
+              <img
+                src="/STRIlogo.png"
+                alt="STRI"
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  right: '20px',
+                  height: '40px',
+                  opacity: 0.7
+                }}
+              />
+              <h3 style={{ color: 'white', marginBottom: '20px', textAlign: 'center', fontFamily: "'Montserrat', sans-serif", fontWeight: '600' }}>
                 Climate Envelope: {metrics.find(m => m.id === selectedMetric)?.name}
-                <span style={{ display: 'block', fontSize: '0.8em', color: '#aaa', marginTop: '5px' }}>
+                <span style={{ display: 'block', fontSize: '0.8em', color: '#aaa', marginTop: '5px', fontWeight: '400' }}>
                   Historical range (1980-2025)
                   {caveOverlayYear === 'current' ? ' with current weather + forecast' : ` with ${caveOverlayYear} overlay`}
                 </span>
@@ -934,15 +1005,15 @@ export default function Home() {
               </div>
             </div>
 
-            <div style={{ background: '#2d2d44', borderLeft: '4px solid #32cd32', padding: '20px', margin: '20px 0', borderRadius: '8px' }}>
-              <h3 style={{ color: '#32cd32', marginBottom: '10px' }}>Understanding the Cave Graph</h3>
-              <ul style={{ color: '#ccc', lineHeight: '1.8' }}>
+            <div style={{ background: '#2d2d44', borderLeft: `4px solid ${striBrand.accent}`, padding: '20px', margin: '20px 0', borderRadius: '8px' }}>
+              <h3 style={{ color: striBrand.accent, marginBottom: '10px', fontFamily: "'Montserrat', sans-serif" }}>Understanding the Cave Graph</h3>
+              <ul style={{ color: '#ccc', lineHeight: '1.8', fontFamily: "'Montserrat', sans-serif" }}>
                 <li><strong style={{ color: 'white' }}>White band (middle 50%):</strong> Normal range - values between 25th and 75th percentile</li>
                 <li><strong style={{ color: '#888' }}>Grey bands (outer 25%):</strong> Unusual range - below 25th or above 75th percentile</li>
                 {caveOverlayYear === 'current' ? (
                   <li><strong style={{ color: '#ff6b35' }}>Orange line:</strong> Recent weather (6 months) + forecast (16 days)</li>
                 ) : (
-                  <li><strong style={{ color: '#32cd32' }}>Lime green line:</strong> {caveOverlayYear} historical data</li>
+                  <li><strong style={{ color: striBrand.accent }}>Lime green line:</strong> {caveOverlayYear} historical data</li>
                 )}
                 <li><strong style={{ color: '#ff0000' }}>Red dashed line:</strong> Today's date</li>
               </ul>
