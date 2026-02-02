@@ -197,24 +197,22 @@ export default function Home() {
       if (!useAccStartDate) return 0;
       const dates = data[firstYear].dates;
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      // Also handle "Sept" variant for September
+      const monthAliases = { 'Sept': 8 }; // Sept -> index 8 (September)
       const targetMonthName = monthNames[accStartDate.month - 1];
       const targetDay = accStartDate.day;
-      // Build target string to match "Mar 18" format
-      const targetStr = `${targetMonthName} ${targetDay}`;
 
-      for (let i = 0; i < dates.length; i++) {
-        // Direct string match (dates are in "Mar 18" format)
-        if (dates[i] === targetStr) return i;
-        // Also try case-insensitive match
-        if (dates[i].toLowerCase() === targetStr.toLowerCase()) return i;
-      }
-      // Fallback: try to find by parsing
       for (let i = 0; i < dates.length; i++) {
         const parts = dates[i].split(' ');
         if (parts.length === 2) {
           const monthStr = parts[0];
           const day = parseInt(parts[1]);
-          const monthIdx = monthNames.findIndex(m => m.toLowerCase() === monthStr.toLowerCase());
+          // Check direct match
+          let monthIdx = monthNames.findIndex(m => m.toLowerCase() === monthStr.toLowerCase());
+          // Check aliases (e.g., "Sept" for September)
+          if (monthIdx === -1 && monthAliases[monthStr] !== undefined) {
+            monthIdx = monthAliases[monthStr];
+          }
           if (monthIdx + 1 === accStartDate.month && day === targetDay) return i;
         }
       }
@@ -262,6 +260,7 @@ export default function Home() {
         const cumulative = calculateCumulative(rawValues);
         let lastMarker = 0;
         let markerCount = 1; // Start at 1 for the initial application marker
+        let lastDayIndex = accStartIndex; // Track last marker position for days calculation
 
         // Add marker 1 at the start date (first application)
         if (useAccStartDate && accStartIndex < cumulative.length) {
@@ -272,7 +271,8 @@ export default function Home() {
             value: 0, // Start value
             date: labels[accStartIndex],
             count: 1,
-            isStartMarker: true
+            isStartMarker: true,
+            daysSinceLast: 0
           });
         }
 
@@ -284,14 +284,17 @@ export default function Home() {
             while (value >= lastMarker + threshold) {
               lastMarker += threshold;
               markerCount++;
+              const daysSinceLast = dayIndex - lastDayIndex;
               thresholdMarkers.push({
                 year,
                 yearIndex,
                 dayIndex,
                 value: lastMarker,
                 date: labels[dayIndex],
-                count: markerCount
+                count: markerCount,
+                daysSinceLast
               });
+              lastDayIndex = dayIndex;
             }
           }
         });
@@ -708,6 +711,21 @@ export default function Home() {
             padding: { x: 6, y: 3 },
             yAdjust: -28,
           };
+          // Days since last marker (below the value box)
+          if (marker.daysSinceLast !== undefined) {
+            annotations[`threshold_days_${idx}`] = {
+              type: 'label',
+              xValue: marker.dayIndex,
+              yValue: marker.value,
+              content: `${marker.daysSinceLast}d`,
+              color: '#666',
+              backgroundColor: 'rgba(255,255,255,0.85)',
+              borderRadius: 3,
+              font: { size: 9, weight: '500', family: "'Montserrat', sans-serif" },
+              padding: { x: 4, y: 2 },
+              yAdjust: 22,
+            };
+          }
         }
       });
     }
