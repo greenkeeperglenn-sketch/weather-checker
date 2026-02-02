@@ -54,6 +54,11 @@ export default function Home() {
   const [accStartDate, setAccStartDate] = useState({ month: 1, day: 1 });
   const [useAccStartDate, setUseAccStartDate] = useState(false);
 
+  // Average lines state
+  const [showAllTimeAvg, setShowAllTimeAvg] = useState(false);
+  const [selectedDecadeAvgs, setSelectedDecadeAvgs] = useState([]);
+  const availableDecades = ['2020s', '2010s', '2000s', '1990s', '1980s'];
+
   const locations = {
     bingley: {
       name: 'Bingley',
@@ -152,8 +157,8 @@ export default function Home() {
   };
 
   const generateChart = async () => {
-    if (selectedYears.length === 0) {
-      alert('Please select at least one year');
+    if (selectedYears.length === 0 && !showAllTimeAvg && selectedDecadeAvgs.length === 0) {
+      alert('Please select at least one year or average');
       return;
     }
 
@@ -161,23 +166,30 @@ export default function Home() {
     setGrayedYears(new Set());
 
     try {
+      // Build averages parameter if any selected
+      const averagesParam = (showAllTimeAvg || selectedDecadeAvgs.length > 0) ? {
+        allTime: showAllTimeAvg,
+        decades: selectedDecadeAvgs
+      } : null;
+
       const response = await fetch('/api/weather', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           startDate,
           endDate,
-          years: selectedYears,
+          years: selectedYears.length > 0 ? selectedYears : [2024], // Need at least one year for structure
           metrics: [selectedMetric],
           lat: currentLocation.lat,
-          lon: currentLocation.lon
+          lon: currentLocation.lon,
+          averages: averagesParam
         })
       });
 
       const result = await response.json();
 
       if (result.success) {
-        processChartData(result.data);
+        processChartData(result.data, result.averages);
       } else {
         alert('Error fetching data: ' + result.error);
       }
@@ -188,9 +200,10 @@ export default function Home() {
     }
   };
 
-  const processChartData = (data) => {
-    const firstYear = selectedYears[0];
-    const labels = data[firstYear].dates;
+  const processChartData = (data, averages = {}) => {
+    // Get labels from first available data source
+    const firstYear = selectedYears[0] || Object.keys(data)[0];
+    const labels = data[firstYear]?.dates || [];
 
     // Find the start index for accumulation based on accStartDate
     const findAccStartIndex = () => {
@@ -250,6 +263,54 @@ export default function Home() {
         yearNum: year // Store original year for legend click handling
       };
     });
+
+    // Add average datasets
+    const avgColors = {
+      allTime: '#000000',  // Black for all-time
+      '2020s': '#e74c3c',  // Red
+      '2010s': '#9b59b6',  // Purple
+      '2000s': '#3498db',  // Blue
+      '1990s': '#1abc9c',  // Teal
+      '1980s': '#f39c12',  // Orange
+    };
+
+    if (averages) {
+      // All-time average
+      if (averages.allTime && averages.allTime[selectedMetric]) {
+        const rawValues = averages.allTime[selectedMetric];
+        const displayValues = accumulatedMode ? calculateCumulative(rawValues) : rawValues;
+        datasets.push({
+          label: 'All-Time Avg',
+          data: displayValues,
+          borderColor: avgColors.allTime,
+          backgroundColor: 'transparent',
+          borderWidth: 3,
+          borderDash: [8, 4],
+          pointRadius: 0,
+          tension: 0.3,
+          isAverage: true
+        });
+      }
+
+      // Decade averages
+      availableDecades.forEach(decade => {
+        if (averages[decade] && averages[decade][selectedMetric]) {
+          const rawValues = averages[decade][selectedMetric];
+          const displayValues = accumulatedMode ? calculateCumulative(rawValues) : rawValues;
+          datasets.push({
+            label: `${decade} Avg`,
+            data: displayValues,
+            borderColor: avgColors[decade],
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            borderDash: [5, 3],
+            pointRadius: 0,
+            tension: 0.3,
+            isAverage: true
+          });
+        }
+      });
+    }
 
     // Calculate threshold crossings for markers
     let thresholdMarkers = [];
@@ -1104,6 +1165,41 @@ export default function Home() {
                       {year}
                     </button>
                   ))}
+                </div>
+
+                {/* Averages Section */}
+                <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'block', fontWeight: '600', marginBottom: '10px', color: '#2d3748', fontSize: '0.9em' }}>
+                    Include Averages:
+                  </label>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', padding: '6px 12px', background: showAllTimeAvg ? '#e8f5e9' : '#f7f7f7', borderRadius: '6px', border: showAllTimeAvg ? `2px solid ${striBrand.secondary}` : '2px solid #e2e8f0' }}>
+                      <input
+                        type="checkbox"
+                        checked={showAllTimeAvg}
+                        onChange={(e) => setShowAllTimeAvg(e.target.checked)}
+                        style={{ accentColor: striBrand.primary }}
+                      />
+                      <span style={{ fontSize: '13px', fontWeight: '500' }}>All-Time Avg</span>
+                    </label>
+                    {availableDecades.map(decade => (
+                      <label key={decade} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', padding: '6px 12px', background: selectedDecadeAvgs.includes(decade) ? '#e8f5e9' : '#f7f7f7', borderRadius: '6px', border: selectedDecadeAvgs.includes(decade) ? `2px solid ${striBrand.secondary}` : '2px solid #e2e8f0' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedDecadeAvgs.includes(decade)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedDecadeAvgs([...selectedDecadeAvgs, decade]);
+                            } else {
+                              setSelectedDecadeAvgs(selectedDecadeAvgs.filter(d => d !== decade));
+                            }
+                          }}
+                          style={{ accentColor: striBrand.primary }}
+                        />
+                        <span style={{ fontSize: '13px', fontWeight: '500' }}>{decade}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
             </>
