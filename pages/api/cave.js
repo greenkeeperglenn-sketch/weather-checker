@@ -200,6 +200,44 @@ export default async function handler(req, res) {
       console.error('Failed to fetch forecast:', e);
     }
 
+    // Calculate averages for each day of year
+    const decadeRanges = {
+      '2020s': [2020, 2021, 2022, 2023, 2024, 2025],
+      '2010s': [2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019],
+      '2000s': [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009],
+      '1990s': [1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999],
+      '1980s': [1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989],
+    };
+
+    const averagesData = {
+      allTime: {},
+      '2020s': {},
+      '2010s': {},
+      '2000s': {},
+      '1990s': {},
+      '1980s': {},
+    };
+
+    // Calculate averages for each day
+    Object.keys(allYearsData).forEach(monthDay => {
+      const dayData = allYearsData[monthDay];
+
+      // All-time average
+      const allValues = dayData.map(d => d.value);
+      if (allValues.length > 0) {
+        averagesData.allTime[monthDay] = allValues.reduce((a, b) => a + b, 0) / allValues.length;
+      }
+
+      // Decade averages
+      Object.keys(decadeRanges).forEach(decade => {
+        const decadeYears = decadeRanges[decade];
+        const decadeValues = dayData.filter(d => decadeYears.includes(d.year)).map(d => d.value);
+        if (decadeValues.length > 0) {
+          averagesData[decade][monthDay] = decadeValues.reduce((a, b) => a + b, 0) / decadeValues.length;
+        }
+      });
+    });
+
     res.status(200).json({
       success: true,
       data: caveData,
@@ -207,7 +245,8 @@ export default async function handler(req, res) {
       historicalYears,
       overlayYears,
       forecastData,
-      recentData
+      recentData,
+      averagesData
     });
   } catch (error) {
     console.error('Error fetching cave data:', error);

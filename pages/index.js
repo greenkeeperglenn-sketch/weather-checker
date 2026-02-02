@@ -394,7 +394,7 @@ export default function Home() {
   };
 
   const processCaveData = (result) => {
-    const { data, overlayData, overlayYears, forecastData, recentData } = result;
+    const { data, overlayData, overlayYears, forecastData, recentData, averagesData } = result;
 
     // Get today's date info for positioning
     const today = new Date();
@@ -434,7 +434,8 @@ export default function Home() {
     setAvailableOverlayYears(spanningYears);
 
     // Default to 'current' if not a valid selection
-    if (caveOverlayYear !== 'current' && !spanningYears.some(sy => sy.label === caveOverlayYear)) {
+    const isValidAverage = caveOverlayYear.startsWith('avg_');
+    if (caveOverlayYear !== 'current' && !isValidAverage && !spanningYears.some(sy => sy.label === caveOverlayYear)) {
       setCaveOverlayYear('current');
     }
 
@@ -452,6 +453,12 @@ export default function Home() {
       overlayDataPoints[sy.label] = [];
     });
     overlayDataPoints['current'] = [];
+
+    // Initialize average overlay data
+    const avgKeys = ['avg_allTime', 'avg_2020s', 'avg_2010s', 'avg_2000s', 'avg_1990s', 'avg_1980s'];
+    avgKeys.forEach(key => {
+      overlayDataPoints[key] = [];
+    });
 
     let todayIndex = -1;
     let dayCounter = 0;
@@ -491,6 +498,18 @@ export default function Home() {
             overlayDataPoints[sy.label].push(null);
           }
         });
+
+        // Add average data points
+        if (averagesData) {
+          // All-time average
+          overlayDataPoints['avg_allTime'].push(averagesData.allTime?.[monthDay] ?? null);
+          // Decade averages
+          overlayDataPoints['avg_2020s'].push(averagesData['2020s']?.[monthDay] ?? null);
+          overlayDataPoints['avg_2010s'].push(averagesData['2010s']?.[monthDay] ?? null);
+          overlayDataPoints['avg_2000s'].push(averagesData['2000s']?.[monthDay] ?? null);
+          overlayDataPoints['avg_1990s'].push(averagesData['1990s']?.[monthDay] ?? null);
+          overlayDataPoints['avg_1980s'].push(averagesData['1980s']?.[monthDay] ?? null);
+        }
 
         // Add current data (recent actual + forecast combined)
         // Recent data takes priority, then forecast
@@ -532,9 +551,23 @@ export default function Home() {
     const recentValues = currentDataPoints.map(d => d && d.type === 'recent' ? d.value : null);
     const forecastValues = currentDataPoints.map(d => d && d.type === 'forecast' ? d.value : null);
 
-    // Get overlay data - either spanning year or current combined
+    // Get overlay data - either spanning year, current, or average
     const isCurrentSelected = caveOverlayYear === 'current';
-    const overlayLabel = isCurrentSelected ? 'Current' : caveOverlayYear;
+    const isAverageSelected = caveOverlayYear.startsWith('avg_');
+
+    // Map average keys to display labels
+    const avgLabels = {
+      'avg_allTime': 'All-Time Avg',
+      'avg_2020s': '2020s Avg',
+      'avg_2010s': '2010s Avg',
+      'avg_2000s': '2000s Avg',
+      'avg_1990s': '1990s Avg',
+      'avg_1980s': '1980s Avg',
+    };
+
+    const overlayLabel = isCurrentSelected ? 'Current' :
+                         isAverageSelected ? avgLabels[caveOverlayYear] :
+                         caveOverlayYear;
     const overlayValues = isCurrentSelected
       ? currentDataPoints.map(d => d ? d.value : null)
       : (overlayDataPoints[caveOverlayYear] || []);
@@ -596,6 +629,28 @@ export default function Home() {
         borderColor: '#ff6b35',  // Bright orange - visible on black
         backgroundColor: 'transparent',
         borderWidth: 3,
+        fill: false,
+        pointRadius: 0,
+        tension: 0.3,
+        order: 0
+      });
+    } else if (isAverageSelected) {
+      // Show average as dashed line with specific color
+      const avgColors = {
+        'avg_allTime': '#ffffff',  // White for all-time
+        'avg_2020s': '#e74c3c',    // Red
+        'avg_2010s': '#9b59b6',    // Purple
+        'avg_2000s': '#3498db',    // Blue
+        'avg_1990s': '#1abc9c',    // Teal
+        'avg_1980s': '#f39c12',    // Orange
+      };
+      datasets.push({
+        label: overlayLabel,
+        data: overlayValues,
+        borderColor: avgColors[caveOverlayYear] || '#ffffff',
+        backgroundColor: 'transparent',
+        borderWidth: 3,
+        borderDash: [8, 4],
         fill: false,
         pointRadius: 0,
         tension: 0.3,
@@ -1229,6 +1284,14 @@ export default function Home() {
                     }}
                   >
                     <option value="current">Current (Recent + Forecast)</option>
+                    <optgroup label="Averages">
+                      <option value="avg_allTime">All-Time Average (1980-2025)</option>
+                      <option value="avg_2020s">2020s Average</option>
+                      <option value="avg_2010s">2010s Average</option>
+                      <option value="avg_2000s">2000s Average</option>
+                      <option value="avg_1990s">1990s Average</option>
+                      <option value="avg_1980s">1980s Average</option>
+                    </optgroup>
                     <optgroup label="Historical Periods">
                       {(availableOverlayYears.length > 0 ? availableOverlayYears : []).map(sy => (
                         <option key={sy.label} value={sy.label}>{sy.label}</option>
