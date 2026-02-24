@@ -404,8 +404,25 @@ export default function Home() {
     const currentDay = today.getDate();
     const currentYear = today.getFullYear();
 
-    // Create rolling year view: 6 months back, 6 months forward
-    const startMonth = ((currentMonth - 7 + 12) % 12) + 1; // 6 months back
+    // Calculate optimal start month to center today in the 12-month window
+    const daysPerMonth = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let startMonth = ((currentMonth - 7 + 12) % 12) + 1; // default
+    let bestDiff = Infinity;
+    for (let offset = 5; offset <= 8; offset++) {
+      const tryStart = ((currentMonth - offset - 1 + 12) % 12) + 1;
+      let days = 0;
+      let m = tryStart;
+      while (m !== currentMonth) {
+        days += daysPerMonth[m - 1];
+        m = (m % 12) + 1;
+      }
+      days += currentDay;
+      const diff = Math.abs(days - 182.5);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        startMonth = tryStart;
+      }
+    }
 
     // Determine which year the start month falls in
     // If startMonth > currentMonth, it's in the previous year
