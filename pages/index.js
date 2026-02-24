@@ -664,10 +664,11 @@ export default function Home() {
     ];
 
     if (isCurrentSelected) {
-      // Solid orange line for recent actual data (up to today)
+      // Solid orange line for recent actual data (up to today only)
+      const recentTruncated = recentValues.map((v, i) => i <= todayIndex ? v : null);
       datasets.push({
         label: 'Current',
-        data: recentValues,
+        data: recentTruncated,
         borderColor: '#ff6b35',
         backgroundColor: 'transparent',
         borderWidth: 3,
@@ -676,11 +677,11 @@ export default function Home() {
         tension: 0.3,
         order: 0
       });
-      // Dashed orange line for forecast data (after today)
+      // Solid orange line for forecast data (after today)
       // Bridge from last recent point so the lines connect seamlessly
       const forecastWithBridge = [...forecastValues];
-      if (todayIndex >= 0 && recentValues[todayIndex] != null) {
-        forecastWithBridge[todayIndex] = recentValues[todayIndex];
+      if (todayIndex >= 0 && recentTruncated[todayIndex] != null) {
+        forecastWithBridge[todayIndex] = recentTruncated[todayIndex];
       }
       datasets.push({
         label: 'Forecast',
@@ -688,7 +689,6 @@ export default function Home() {
         borderColor: '#ff6b35',
         backgroundColor: 'transparent',
         borderWidth: 3,
-        borderDash: [6, 4],
         fill: false,
         pointRadius: 0,
         tension: 0.3,
@@ -1696,7 +1696,7 @@ export default function Home() {
                 <li><strong style={{ color: 'white' }}>White band (middle 50%):</strong> Normal range - values between 25th and 75th percentile</li>
                 <li><strong style={{ color: '#888' }}>Grey bands (outer 25%):</strong> Unusual range - below 25th or above 75th percentile</li>
                 {caveOverlayYear === 'current' ? (
-                  <li><strong style={{ color: '#ff6b35' }}>Orange solid line:</strong> Recent weather (6 months) | <strong style={{ color: '#ff6b35' }}>Orange dashed line:</strong> 16-day forecast</li>
+                  <li><strong style={{ color: '#ff6b35' }}>Orange line:</strong> Recent weather (6 months) + 16-day forecast</li>
                 ) : (
                   <li><strong style={{ color: striBrand.accent }}>Lime green line:</strong> {caveOverlayYear} historical data</li>
                 )}
