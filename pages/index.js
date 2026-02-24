@@ -69,7 +69,11 @@ export default function Home() {
     if (!el) return;
     try {
       const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(el, { useCORS: true, scale: 2 });
+      const canvas = await html2canvas(el, {
+        useCORS: true,
+        scale: 2,
+        ignoreElements: (element) => element.dataset?.htmlToCanvasIgnore === 'true'
+      });
       canvas.toBlob(async (blob) => {
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
         setCopiedChart(chartName);
@@ -660,14 +664,31 @@ export default function Home() {
     ];
 
     if (isCurrentSelected) {
-      // Show recent actual data only up to today (not into the future)
-      const combinedValues = currentDataPoints.map((d, i) => (d && i <= todayIndex) ? d.value : null);
+      // Solid orange line for recent actual data (up to today)
       datasets.push({
         label: 'Current',
-        data: combinedValues,
-        borderColor: '#ff6b35',  // Bright orange - visible on black
+        data: recentValues,
+        borderColor: '#ff6b35',
         backgroundColor: 'transparent',
         borderWidth: 3,
+        fill: false,
+        pointRadius: 0,
+        tension: 0.3,
+        order: 0
+      });
+      // Dashed orange line for forecast data (after today)
+      // Bridge from last recent point so the lines connect seamlessly
+      const forecastWithBridge = [...forecastValues];
+      if (todayIndex >= 0 && recentValues[todayIndex] != null) {
+        forecastWithBridge[todayIndex] = recentValues[todayIndex];
+      }
+      datasets.push({
+        label: 'Forecast',
+        data: forecastWithBridge,
+        borderColor: '#ff6b35',
+        backgroundColor: 'transparent',
+        borderWidth: 3,
+        borderDash: [6, 4],
         fill: false,
         pointRadius: 0,
         tension: 0.3,
@@ -727,7 +748,7 @@ export default function Home() {
           labels: {
             color: '#ffffff',
             font: { family: "'Montserrat', sans-serif", weight: '500' },
-            filter: (item) => item.text === `${caveOverlayYear}` || item.text === 'Normal Range'
+            filter: (item) => item.text !== 'Forecast' && (item.text === `${caveOverlayYear}` || item.text === 'Current' || item.text === 'Normal Range')
           },
           onClick: () => {} // Disable legend click
         },
@@ -1554,6 +1575,7 @@ export default function Home() {
 
             <div ref={standardChartRef} style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', position: 'relative' }}>
               <button
+                data-html-to-canvas-ignore="true"
                 onClick={() => copyChartToClipboard(standardChartRef, 'standard')}
                 title="Copy chart to clipboard"
                 style={{
@@ -1617,6 +1639,7 @@ export default function Home() {
           <div style={{ padding: '30px', fontFamily: "'Montserrat', sans-serif" }}>
             <div ref={caveChartRef} style={{ background: '#1a1a2e', padding: '30px', borderRadius: '12px', position: 'relative' }}>
               <button
+                data-html-to-canvas-ignore="true"
                 onClick={() => copyChartToClipboard(caveChartRef, 'cave')}
                 title="Copy chart to clipboard"
                 style={{
@@ -1673,7 +1696,7 @@ export default function Home() {
                 <li><strong style={{ color: 'white' }}>White band (middle 50%):</strong> Normal range - values between 25th and 75th percentile</li>
                 <li><strong style={{ color: '#888' }}>Grey bands (outer 25%):</strong> Unusual range - below 25th or above 75th percentile</li>
                 {caveOverlayYear === 'current' ? (
-                  <li><strong style={{ color: '#ff6b35' }}>Orange line:</strong> Recent weather (6 months) + forecast (16 days)</li>
+                  <li><strong style={{ color: '#ff6b35' }}>Orange solid line:</strong> Recent weather (6 months) | <strong style={{ color: '#ff6b35' }}>Orange dashed line:</strong> 16-day forecast</li>
                 ) : (
                   <li><strong style={{ color: striBrand.accent }}>Lime green line:</strong> {caveOverlayYear} historical data</li>
                 )}
