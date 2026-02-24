@@ -1,18 +1,30 @@
 // pages/api/weather.js
 
-// Calculated metrics that derive from temperature_2m_mean
-const calculatedMetrics = ['gdd0', 'gdd6', 'growth_potential'];
+// Map each calculated metric to the API field it depends on
+const calculatedMetricDeps = {
+  gdd0: 'temperature_2m_mean',
+  gdd6: 'temperature_2m_mean',
+  growth_potential: 'temperature_2m_mean',
+  dli: 'shortwave_radiation_sum',
+};
+const calculatedMetrics = Object.keys(calculatedMetricDeps);
 
 // Growth Potential constants
 const TOPT = 20;  // Optimal temperature
 const S = 5.5;    // Spread parameter
 
-// Calculate derived metrics from mean temperature
-function calculateDerivedMetrics(tavg) {
+// DLI conversion: PAR ≈ 45% of total shortwave, 1 MJ PAR = 4.57 mol photons
+const DLI_FACTOR = 2.04; // 0.45 * 4.57
+
+// Calculate derived metrics from source data
+function calculateDerivedMetrics(dataRow) {
+  const tavg = dataRow.temperature_2m_mean;
+  const swr = dataRow.shortwave_radiation_sum;
   return {
-    gdd0: Math.max(0, tavg),                                    // GDD base 0
-    gdd6: Math.max(0, tavg - 6),                                // GDD base 6
-    growth_potential: Math.exp(-0.5 * Math.pow((tavg - TOPT) / S, 2))  // Growth Potential
+    gdd0: tavg != null ? Math.max(0, tavg) : null,
+    gdd6: tavg != null ? Math.max(0, tavg - 6) : null,
+    growth_potential: tavg != null ? Math.exp(-0.5 * Math.pow((tavg - TOPT) / S, 2)) : null,
+    dli: swr != null ? swr * DLI_FACTOR : null,
   };
 }
 
@@ -44,11 +56,13 @@ export default async function handler(req, res) {
   const requestedCalculated = metrics.filter(m => calculatedMetrics.includes(m));
   const apiMetrics = metrics.filter(m => !calculatedMetrics.includes(m));
 
-  // If any calculated metrics requested, ensure we fetch temperature_2m_mean
-  const needsTemp = requestedCalculated.length > 0;
-  if (needsTemp && !apiMetrics.includes('temperature_2m_mean')) {
-    apiMetrics.push('temperature_2m_mean');
-  }
+  // Ensure we fetch the dependency for each requested calculated metric
+  requestedCalculated.forEach(m => {
+    const dep = calculatedMetricDeps[m];
+    if (dep && !apiMetrics.includes(dep)) {
+      apiMetrics.push(dep);
+    }
+  });
 
   const metricsStr = apiMetrics.join(',');
 
@@ -77,8 +91,11 @@ export default async function handler(req, res) {
 
           // Calculate derived metrics if needed
           if (requestedCalculated.length > 0) {
-            const tavg = data.daily.temperature_2m_mean[index];
-            const derived = calculateDerivedMetrics(tavg);
+            const dataRow = {};
+            for (const dep of new Set(requestedCalculated.map(m => calculatedMetricDeps[m]))) {
+              dataRow[dep] = data.daily[dep] ? data.daily[dep][index] : null;
+            }
+            const derived = calculateDerivedMetrics(dataRow);
             requestedCalculated.forEach(metric => {
               filteredData[metric].push(derived[metric]);
             });
@@ -163,8 +180,11 @@ export default async function handler(req, res) {
             });
 
             if (requestedCalculated.length > 0) {
-              const tavg = data.daily.temperature_2m_mean[index];
-              const derived = calculateDerivedMetrics(tavg);
+              const dataRow = {};
+              for (const dep of new Set(requestedCalculated.map(m => calculatedMetricDeps[m]))) {
+                dataRow[dep] = data.daily[dep] ? data.daily[dep][index] : null;
+              }
+              const derived = calculateDerivedMetrics(dataRow);
               requestedCalculated.forEach(metric => {
                 filteredData[metric].push(derived[metric]);
               });

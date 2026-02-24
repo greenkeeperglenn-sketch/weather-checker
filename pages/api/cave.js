@@ -1,21 +1,32 @@
 // pages/api/cave.js
 
-// Calculated metrics that derive from temperature_2m_mean
-const calculatedMetrics = ['gdd0', 'gdd6', 'growth_potential'];
+// Map each calculated metric to the API field it depends on
+const calculatedMetricDeps = {
+  gdd0: 'temperature_2m_mean',
+  gdd6: 'temperature_2m_mean',
+  growth_potential: 'temperature_2m_mean',
+  dli: 'shortwave_radiation_sum',
+};
+const calculatedMetrics = Object.keys(calculatedMetricDeps);
 
 // Growth Potential constants
 const TOPT = 20;  // Optimal temperature
 const S = 5.5;    // Spread parameter
 
-// Calculate derived metric value from mean temperature
-function calculateDerivedValue(metric, tavg) {
+// DLI conversion: PAR ≈ 45% of total shortwave, 1 MJ PAR = 4.57 mol photons
+const DLI_FACTOR = 2.04; // 0.45 * 4.57
+
+// Calculate derived metric value from its source API value
+function calculateDerivedValue(metric, value) {
   switch (metric) {
     case 'gdd0':
-      return Math.max(0, tavg);
+      return Math.max(0, value);
     case 'gdd6':
-      return Math.max(0, tavg - 6);
+      return Math.max(0, value - 6);
     case 'growth_potential':
-      return Math.exp(-0.5 * Math.pow((tavg - TOPT) / S, 2));
+      return Math.exp(-0.5 * Math.pow((value - TOPT) / S, 2));
+    case 'dli':
+      return value * DLI_FACTOR;
     default:
       return null;
   }
@@ -34,7 +45,7 @@ export default async function handler(req, res) {
 
   // Check if this is a calculated metric
   const isCalculated = calculatedMetrics.includes(metric);
-  const apiMetric = isCalculated ? 'temperature_2m_mean' : metric;
+  const apiMetric = isCalculated ? calculatedMetricDeps[metric] : metric;
 
   // Map archive metrics to forecast metrics (they use slightly different names)
   const forecastMetricMap = {
@@ -43,7 +54,9 @@ export default async function handler(req, res) {
     'temperature_2m_min': 'temperature_2m_min',
     'precipitation_sum': 'precipitation_sum',
     'sunshine_duration': 'sunshine_duration',
-    'wind_speed_10m_max': 'wind_speed_10m_max'
+    'wind_speed_10m_max': 'wind_speed_10m_max',
+    'et0_fao_evapotranspiration': 'et0_fao_evapotranspiration',
+    'shortwave_radiation_sum': 'shortwave_radiation_sum'
   };
 
   // Use years 1980-2025 for historical data (45 years - ERA5 data available from 1940)
