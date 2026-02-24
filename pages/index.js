@@ -564,7 +564,7 @@ export default function Home() {
   const getCaveChartData = () => {
     if (!caveData) return null;
 
-    const { labels, minData, p25Data, p75Data, maxData, overlayDataPoints, currentDataPoints } = caveData;
+    const { labels, minData, p25Data, p75Data, maxData, overlayDataPoints, currentDataPoints, todayIndex } = caveData;
 
     // Separate recent (actual) and forecast data for different line styles
     const recentValues = currentDataPoints.map(d => d && d.type === 'recent' ? d.value : null);
@@ -639,9 +639,8 @@ export default function Home() {
     ];
 
     if (isCurrentSelected) {
-      // Show recent actual and forecast as one continuous orange line
-      // Combine both into a single dataset for smooth connection
-      const combinedValues = currentDataPoints.map(d => d ? d.value : null);
+      // Show recent actual data only up to today (not into the future)
+      const combinedValues = currentDataPoints.map((d, i) => (d && i <= todayIndex) ? d.value : null);
       datasets.push({
         label: 'Current',
         data: combinedValues,
