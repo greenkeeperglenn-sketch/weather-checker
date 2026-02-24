@@ -1,5 +1,5 @@
 // pages/index.js
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -58,6 +58,27 @@ export default function Home() {
   const [showAllTimeAvg, setShowAllTimeAvg] = useState(false);
   const [selectedDecadeAvgs, setSelectedDecadeAvgs] = useState([]);
   const availableDecades = ['2020s', '2010s', '2000s', '1990s', '1980s'];
+
+  // Chart container refs for copy-to-clipboard
+  const standardChartRef = useRef(null);
+  const caveChartRef = useRef(null);
+  const [copiedChart, setCopiedChart] = useState(null); // 'standard' | 'cave' | null
+
+  const copyChartToClipboard = async (containerRef, chartName) => {
+    const el = containerRef.current;
+    if (!el) return;
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(el, { useCORS: true, scale: 2 });
+      canvas.toBlob(async (blob) => {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        setCopiedChart(chartName);
+        setTimeout(() => setCopiedChart(null), 2000);
+      }, 'image/png');
+    } catch (err) {
+      console.error('Failed to copy chart:', err);
+    }
+  };
 
   const locations = {
     bingley: {
@@ -1531,7 +1552,35 @@ export default function Home() {
               </button>
             </div>
 
-            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', position: 'relative' }}>
+            <div ref={standardChartRef} style={{ background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', position: 'relative' }}>
+              <button
+                onClick={() => copyChartToClipboard(standardChartRef, 'standard')}
+                title="Copy chart to clipboard"
+                style={{
+                  position: 'absolute',
+                  top: '10px',
+                  right: '10px',
+                  zIndex: 10,
+                  background: copiedChart === 'standard' ? '#4CAF50' : 'rgba(0,0,0,0.06)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontFamily: "'Montserrat', sans-serif",
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: copiedChart === 'standard' ? 'white' : '#555',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                {copiedChart === 'standard' ? 'Copied!' : 'Copy'}
+              </button>
               <img
                 src="/STRIlogo.png"
                 alt="STRI"
@@ -1566,7 +1615,35 @@ export default function Home() {
         {/* Cave Graph Display */}
         {caveMode && caveData && (
           <div style={{ padding: '30px', fontFamily: "'Montserrat', sans-serif" }}>
-            <div style={{ background: '#1a1a2e', padding: '30px', borderRadius: '12px', position: 'relative' }}>
+            <div ref={caveChartRef} style={{ background: '#1a1a2e', padding: '30px', borderRadius: '12px', position: 'relative' }}>
+              <button
+                onClick={() => copyChartToClipboard(caveChartRef, 'cave')}
+                title="Copy chart to clipboard"
+                style={{
+                  position: 'absolute',
+                  top: '10px',
+                  left: '10px',
+                  zIndex: 10,
+                  background: copiedChart === 'cave' ? '#4CAF50' : 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontFamily: "'Montserrat', sans-serif",
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: copiedChart === 'cave' ? 'white' : '#aaa',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                {copiedChart === 'cave' ? 'Copied!' : 'Copy'}
+              </button>
               <img
                 src="/STRIlogo.png"
                 alt="STRI"
