@@ -1167,20 +1167,20 @@ export default function Home() {
     const lerp = (p1, p2, t) => ({ x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t });
     const gridLines = [];
     [0.2, 0.4, 0.6, 0.8].forEach(t => {
-      // Lines parallel to bottom (ET-DLI axis) — temperature gridlines
-      gridLines.push({ x1: lerp(top, bottomLeft, t), x2: lerp(top, bottomRight, t) });
-      // Lines parallel to left (Temp-ET axis) — DLI gridlines
-      gridLines.push({ x1: lerp(bottomRight, top, t), x2: lerp(bottomRight, bottomLeft, t) });
-      // Lines parallel to right (Temp-DLI axis) — ET gridlines
-      gridLines.push({ x1: lerp(bottomLeft, top, t), x2: lerp(bottomLeft, bottomRight, t) });
+      // Lines parallel to bottom — temperature gridlines (orange)
+      gridLines.push({ x1: lerp(top, bottomLeft, t), x2: lerp(top, bottomRight, t), color: 'rgba(255,152,0,0.18)' });
+      // Lines parallel to left — DLI gridlines (blue)
+      gridLines.push({ x1: lerp(bottomRight, top, t), x2: lerp(bottomRight, bottomLeft, t), color: 'rgba(79,195,247,0.18)' });
+      // Lines parallel to right — ET gridlines (green)
+      gridLines.push({ x1: lerp(bottomLeft, top, t), x2: lerp(bottomLeft, bottomRight, t), color: 'rgba(102,187,106,0.18)' });
     });
 
     return (
       <svg width="100%" viewBox={`0 0 ${width} ${height + 50}`} style={{ display: 'block', margin: '0 auto', maxWidth: '660px' }}>
-        {/* Grid lines */}
+        {/* Grid lines — color-coded by axis */}
         {gridLines.map((line, i) => (
           <line key={i} x1={line.x1.x} y1={line.x1.y} x2={line.x2.x} y2={line.x2.y}
-            stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+            stroke={line.color} strokeWidth="1" />
         ))}
 
         {/* Triangle */}
@@ -1191,80 +1191,114 @@ export default function Home() {
           strokeWidth="2"
         />
 
-        {/* Axis labels along each side with tick marks */}
+        {/* Axis labels, tick marks (parallel to grid lines), and Low/High labels */}
         {(() => {
           const tickPcts = [0, 20, 40, 60, 80, 100];
           const lp = (p1, p2, t) => ({ x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t });
           const axisElements = [];
+          const tickLen = 12;
+          const s32 = Math.sqrt(3) / 2;
 
-          // LEFT SIDE: Temperature — 0% at bottom-left, 100% at top
+          // Tick directions — each parallel to the OPPOSITE side, pointing outward
+          // Left side (Temp): gridlines horizontal → tick horizontal left
+          const tempTickDir = { x: -1, y: 0 };
+          // Bottom side (ET): gridlines parallel to right side → tick down-right
+          const etTickDir = { x: 0.5, y: s32 };
+          // Right side (DLI): gridlines parallel to left side → tick up-right
+          const dliTickDir = { x: 0.5, y: -s32 };
+
+          // --- LEFT SIDE: Temperature — 0% at bottom-left, 100% at top ---
           {
             const mid = lp(bottomLeft, top, 0.5);
             const angle = Math.atan2(top.y - bottomLeft.y, top.x - bottomLeft.x) * 180 / Math.PI;
             axisElements.push(
-              <text key="temp-label" x={mid.x - 22} y={mid.y + 2}
+              <text key="temp-label" x={mid.x - 28} y={mid.y + 2}
                 textAnchor="middle" fill="#ff9800" fontFamily="Montserrat, sans-serif"
-                fontWeight="700" fontSize="13" transform={`rotate(${angle}, ${mid.x - 22}, ${mid.y + 2})`}>
-                {'TEMPERATURE \u2192'}
+                fontWeight="700" fontSize="12" transform={`rotate(${angle}, ${mid.x - 28}, ${mid.y + 2})`}>
+                TEMPERATURE
               </text>
             );
             tickPcts.forEach(pct => {
               const t = pct / 100;
               const p = lp(bottomLeft, top, t);
-              const dx = -8, dy = 5;
               axisElements.push(
                 <line key={`temp-tick-${pct}`}
-                  x1={p.x + dx * 0.6} y1={p.y + dy * 0.6}
-                  x2={p.x + dx * 1.8} y2={p.y + dy * 1.8}
-                  stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
+                  x1={p.x} y1={p.y}
+                  x2={p.x + tempTickDir.x * tickLen} y2={p.y + tempTickDir.y * tickLen}
+                  stroke="rgba(255,152,0,0.5)" strokeWidth="1" />
               );
               axisElements.push(
                 <text key={`temp-ticklbl-${pct}`}
-                  x={p.x + dx * 2.8} y={p.y + dy * 2.8 + 1}
-                  textAnchor="middle" fill="rgba(255,255,255,0.6)"
+                  x={p.x + tempTickDir.x * (tickLen + 14)} y={p.y + tempTickDir.y * (tickLen + 14) + 3}
+                  textAnchor="middle" fill="rgba(255,152,0,0.7)"
                   fontFamily="Montserrat, sans-serif" fontSize="9">{pct}%</text>
               );
             });
+            // Low/High
+            const lowP = lp(bottomLeft, top, 0);
+            const highP = lp(bottomLeft, top, 1);
+            axisElements.push(
+              <text key="temp-low" x={lowP.x + tempTickDir.x * (tickLen + 30)} y={lowP.y + 4}
+                textAnchor="middle" fill="rgba(255,152,0,0.5)"
+                fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="9">Low</text>
+            );
+            axisElements.push(
+              <text key="temp-high" x={highP.x + tempTickDir.x * (tickLen + 30)} y={highP.y + 4}
+                textAnchor="middle" fill="#ff9800"
+                fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="9">High</text>
+            );
           }
 
-          // RIGHT SIDE: DLI — 0% at top, 100% at bottom-right
+          // --- RIGHT SIDE: DLI — 0% at top, 100% at bottom-right ---
           {
             const mid = lp(top, bottomRight, 0.5);
             const angle = Math.atan2(bottomRight.y - top.y, bottomRight.x - top.x) * 180 / Math.PI;
             axisElements.push(
-              <text key="dli-label" x={mid.x + 22} y={mid.y - 2}
+              <text key="dli-label" x={mid.x + 28} y={mid.y - 2}
                 textAnchor="middle" fill="#4fc3f7" fontFamily="Montserrat, sans-serif"
-                fontWeight="700" fontSize="13" transform={`rotate(${angle}, ${mid.x + 22}, ${mid.y - 2})`}>
-                {'DLI \u2192'}
+                fontWeight="700" fontSize="12" transform={`rotate(${angle}, ${mid.x + 28}, ${mid.y - 2})`}>
+                DLI
               </text>
             );
             tickPcts.forEach(pct => {
               const t = pct / 100;
               const p = lp(top, bottomRight, t);
-              const dx = 8, dy = 5;
               axisElements.push(
                 <line key={`dli-tick-${pct}`}
-                  x1={p.x + dx * 0.6} y1={p.y + dy * 0.6}
-                  x2={p.x + dx * 1.8} y2={p.y + dy * 1.8}
-                  stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
+                  x1={p.x} y1={p.y}
+                  x2={p.x + dliTickDir.x * tickLen} y2={p.y + dliTickDir.y * tickLen}
+                  stroke="rgba(79,195,247,0.5)" strokeWidth="1" />
               );
               axisElements.push(
                 <text key={`dli-ticklbl-${pct}`}
-                  x={p.x + dx * 2.8} y={p.y + dy * 2.8 + 1}
-                  textAnchor="middle" fill="rgba(255,255,255,0.6)"
+                  x={p.x + dliTickDir.x * (tickLen + 14)} y={p.y + dliTickDir.y * (tickLen + 14) + 3}
+                  textAnchor="middle" fill="rgba(79,195,247,0.7)"
                   fontFamily="Montserrat, sans-serif" fontSize="9">{pct}%</text>
               );
             });
+            // Low/High
+            const lowP = lp(top, bottomRight, 0);
+            const highP = lp(top, bottomRight, 1);
+            axisElements.push(
+              <text key="dli-low" x={lowP.x + dliTickDir.x * (tickLen + 30)} y={lowP.y + dliTickDir.y * (tickLen + 30) + 3}
+                textAnchor="middle" fill="rgba(79,195,247,0.5)"
+                fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="9">Low</text>
+            );
+            axisElements.push(
+              <text key="dli-high" x={highP.x + dliTickDir.x * (tickLen + 30)} y={highP.y + dliTickDir.y * (tickLen + 30) + 3}
+                textAnchor="middle" fill="#4fc3f7"
+                fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="9">High</text>
+            );
           }
 
-          // BOTTOM SIDE: ET — 0% at bottom-right, 100% at bottom-left
+          // --- BOTTOM SIDE: ET — 0% at bottom-right, 100% at bottom-left ---
           {
             const mid = lp(bottomRight, bottomLeft, 0.5);
             axisElements.push(
-              <text key="et-label" x={mid.x} y={mid.y + 32}
+              <text key="et-label" x={mid.x} y={mid.y + 38}
                 textAnchor="middle" fill="#66bb6a" fontFamily="Montserrat, sans-serif"
-                fontWeight="700" fontSize="13">
-                {'\u2190 ET'}
+                fontWeight="700" fontSize="12">
+                {'\u2190 ET \u2014 EVAPOTRANSPIRATION'}
               </text>
             );
             tickPcts.forEach(pct => {
@@ -1272,20 +1306,33 @@ export default function Home() {
               const p = lp(bottomRight, bottomLeft, t);
               axisElements.push(
                 <line key={`et-tick-${pct}`}
-                  x1={p.x} y1={p.y + 4}
-                  x2={p.x} y2={p.y + 12}
-                  stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
+                  x1={p.x} y1={p.y}
+                  x2={p.x + etTickDir.x * tickLen} y2={p.y + etTickDir.y * tickLen}
+                  stroke="rgba(102,187,106,0.5)" strokeWidth="1" />
               );
               axisElements.push(
                 <text key={`et-ticklbl-${pct}`}
-                  x={p.x} y={p.y + 22}
-                  textAnchor="middle" fill="rgba(255,255,255,0.6)"
+                  x={p.x + etTickDir.x * (tickLen + 10)} y={p.y + etTickDir.y * (tickLen + 10) + 3}
+                  textAnchor="middle" fill="rgba(102,187,106,0.7)"
                   fontFamily="Montserrat, sans-serif" fontSize="9">{pct}%</text>
               );
             });
+            // Low/High
+            const lowP = lp(bottomRight, bottomLeft, 0);
+            const highP = lp(bottomRight, bottomLeft, 1);
+            axisElements.push(
+              <text key="et-low" x={lowP.x + etTickDir.x * (tickLen + 28)} y={lowP.y + etTickDir.y * (tickLen + 28) + 3}
+                textAnchor="middle" fill="rgba(102,187,106,0.5)"
+                fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="9">Low</text>
+            );
+            axisElements.push(
+              <text key="et-high" x={highP.x + etTickDir.x * (tickLen + 28)} y={highP.y + etTickDir.y * (tickLen + 28) + 3}
+                textAnchor="middle" fill="#66bb6a"
+                fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="9">High</text>
+            );
           }
 
-          // Vertex labels with actual values
+          // Vertex labels with actual max values
           axisElements.push(
             <text key="v-top" x={top.x} y={top.y - 12} textAnchor="middle" fill="#ff9800"
               fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="10">
@@ -1293,13 +1340,13 @@ export default function Home() {
             </text>
           );
           axisElements.push(
-            <text key="v-bl" x={bottomLeft.x - 16} y={bottomLeft.y + 5} textAnchor="middle" fill="#66bb6a"
+            <text key="v-bl" x={bottomLeft.x - 20} y={bottomLeft.y + 5} textAnchor="middle" fill="#66bb6a"
               fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="10">
               {extremes.et.max.toFixed(1)}mm
             </text>
           );
           axisElements.push(
-            <text key="v-br" x={bottomRight.x + 18} y={bottomRight.y + 5} textAnchor="middle" fill="#4fc3f7"
+            <text key="v-br" x={bottomRight.x + 22} y={bottomRight.y + 5} textAnchor="middle" fill="#4fc3f7"
               fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="10">
               {extremes.dli.max.toFixed(0)} mol
             </text>
