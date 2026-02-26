@@ -1126,8 +1126,8 @@ export default function Home() {
     const avgEtPct = hasAvg ? normalizeToPercent(avgEntry.et, extremes.et.min, extremes.et.max) : 33;
     const avgDliPct = hasAvg ? normalizeToPercent(avgEntry.dli, extremes.dli.min, extremes.dli.max) : 33;
 
-    const width = 600;
-    const margin = 60;
+    const width = 660;
+    const margin = 85;
     const triWidth = width - 2 * margin;
     const triHeight = triWidth * Math.sqrt(3) / 2;
     const height = triHeight + 2 * margin;
@@ -1176,7 +1176,7 @@ export default function Home() {
     });
 
     return (
-      <svg width="100%" viewBox={`0 0 ${width} ${height + 40}`} style={{ display: 'block', margin: '0 auto', maxWidth: '600px' }}>
+      <svg width="100%" viewBox={`0 0 ${width} ${height + 50}`} style={{ display: 'block', margin: '0 auto', maxWidth: '660px' }}>
         {/* Grid lines */}
         {gridLines.map((line, i) => (
           <line key={i} x1={line.x1.x} y1={line.x1.y} x2={line.x2.x} y2={line.x2.y}
@@ -1191,13 +1191,122 @@ export default function Home() {
           strokeWidth="2"
         />
 
-        {/* Axis labels */}
-        <text x={top.x} y={top.y - 15} textAnchor="middle" fill="white"
-          fontFamily="Montserrat, sans-serif" fontWeight="700" fontSize="14">Temp ({extremes.temperature.max.toFixed(0)}{'\u00B0'}C max)</text>
-        <text x={bottomLeft.x - 5} y={bottomLeft.y + 22} textAnchor="middle" fill="white"
-          fontFamily="Montserrat, sans-serif" fontWeight="700" fontSize="14">ET ({extremes.et.max.toFixed(1)}mm max)</text>
-        <text x={bottomRight.x + 5} y={bottomRight.y + 22} textAnchor="middle" fill="white"
-          fontFamily="Montserrat, sans-serif" fontWeight="700" fontSize="14">DLI ({extremes.dli.max.toFixed(0)} max)</text>
+        {/* Axis labels along each side with tick marks */}
+        {(() => {
+          const tickPcts = [0, 20, 40, 60, 80, 100];
+          const lp = (p1, p2, t) => ({ x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t });
+          const axisElements = [];
+
+          // LEFT SIDE: Temperature — 0% at bottom-left, 100% at top
+          {
+            const mid = lp(bottomLeft, top, 0.5);
+            const angle = Math.atan2(top.y - bottomLeft.y, top.x - bottomLeft.x) * 180 / Math.PI;
+            axisElements.push(
+              <text key="temp-label" x={mid.x - 22} y={mid.y + 2}
+                textAnchor="middle" fill="#ff9800" fontFamily="Montserrat, sans-serif"
+                fontWeight="700" fontSize="13" transform={`rotate(${angle}, ${mid.x - 22}, ${mid.y + 2})`}>
+                {'TEMPERATURE \u2192'}
+              </text>
+            );
+            tickPcts.forEach(pct => {
+              const t = pct / 100;
+              const p = lp(bottomLeft, top, t);
+              const dx = -8, dy = 5;
+              axisElements.push(
+                <line key={`temp-tick-${pct}`}
+                  x1={p.x + dx * 0.6} y1={p.y + dy * 0.6}
+                  x2={p.x + dx * 1.8} y2={p.y + dy * 1.8}
+                  stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
+              );
+              axisElements.push(
+                <text key={`temp-ticklbl-${pct}`}
+                  x={p.x + dx * 2.8} y={p.y + dy * 2.8 + 1}
+                  textAnchor="middle" fill="rgba(255,255,255,0.6)"
+                  fontFamily="Montserrat, sans-serif" fontSize="9">{pct}%</text>
+              );
+            });
+          }
+
+          // RIGHT SIDE: DLI — 0% at top, 100% at bottom-right
+          {
+            const mid = lp(top, bottomRight, 0.5);
+            const angle = Math.atan2(bottomRight.y - top.y, bottomRight.x - top.x) * 180 / Math.PI;
+            axisElements.push(
+              <text key="dli-label" x={mid.x + 22} y={mid.y - 2}
+                textAnchor="middle" fill="#4fc3f7" fontFamily="Montserrat, sans-serif"
+                fontWeight="700" fontSize="13" transform={`rotate(${angle}, ${mid.x + 22}, ${mid.y - 2})`}>
+                {'DLI \u2192'}
+              </text>
+            );
+            tickPcts.forEach(pct => {
+              const t = pct / 100;
+              const p = lp(top, bottomRight, t);
+              const dx = 8, dy = 5;
+              axisElements.push(
+                <line key={`dli-tick-${pct}`}
+                  x1={p.x + dx * 0.6} y1={p.y + dy * 0.6}
+                  x2={p.x + dx * 1.8} y2={p.y + dy * 1.8}
+                  stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
+              );
+              axisElements.push(
+                <text key={`dli-ticklbl-${pct}`}
+                  x={p.x + dx * 2.8} y={p.y + dy * 2.8 + 1}
+                  textAnchor="middle" fill="rgba(255,255,255,0.6)"
+                  fontFamily="Montserrat, sans-serif" fontSize="9">{pct}%</text>
+              );
+            });
+          }
+
+          // BOTTOM SIDE: ET — 0% at bottom-right, 100% at bottom-left
+          {
+            const mid = lp(bottomRight, bottomLeft, 0.5);
+            axisElements.push(
+              <text key="et-label" x={mid.x} y={mid.y + 32}
+                textAnchor="middle" fill="#66bb6a" fontFamily="Montserrat, sans-serif"
+                fontWeight="700" fontSize="13">
+                {'\u2190 ET'}
+              </text>
+            );
+            tickPcts.forEach(pct => {
+              const t = pct / 100;
+              const p = lp(bottomRight, bottomLeft, t);
+              axisElements.push(
+                <line key={`et-tick-${pct}`}
+                  x1={p.x} y1={p.y + 4}
+                  x2={p.x} y2={p.y + 12}
+                  stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
+              );
+              axisElements.push(
+                <text key={`et-ticklbl-${pct}`}
+                  x={p.x} y={p.y + 22}
+                  textAnchor="middle" fill="rgba(255,255,255,0.6)"
+                  fontFamily="Montserrat, sans-serif" fontSize="9">{pct}%</text>
+              );
+            });
+          }
+
+          // Vertex labels with actual values
+          axisElements.push(
+            <text key="v-top" x={top.x} y={top.y - 12} textAnchor="middle" fill="#ff9800"
+              fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="10">
+              {extremes.temperature.max.toFixed(0)}{'\u00B0'}C
+            </text>
+          );
+          axisElements.push(
+            <text key="v-bl" x={bottomLeft.x - 16} y={bottomLeft.y + 5} textAnchor="middle" fill="#66bb6a"
+              fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="10">
+              {extremes.et.max.toFixed(1)}mm
+            </text>
+          );
+          axisElements.push(
+            <text key="v-br" x={bottomRight.x + 18} y={bottomRight.y + 5} textAnchor="middle" fill="#4fc3f7"
+              fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="10">
+              {extremes.dli.max.toFixed(0)} mol
+            </text>
+          );
+
+          return axisElements;
+        })()}
 
         {/* Trail */}
         {trailPoints.length > 1 && trailPoints.map((tp, i) => {
@@ -1231,18 +1340,18 @@ export default function Home() {
         )}
 
         {/* Legend */}
-        <circle cx={margin} cy={height + 15} r={6} fill="#e91e63" stroke="white" strokeWidth="1.5" />
-        <text x={margin + 15} y={height + 20} fill="white" fontFamily="Montserrat, sans-serif" fontSize="12">
+        <circle cx={margin} cy={height + 25} r={6} fill="#e91e63" stroke="white" strokeWidth="1.5" />
+        <text x={margin + 15} y={height + 30} fill="white" fontFamily="Montserrat, sans-serif" fontSize="12">
           {ternarySelectedYear}
         </text>
-        <circle cx={margin + 80} cy={height + 15} r={6} fill="none" stroke="white" strokeWidth="2" />
-        <text x={margin + 95} y={height + 20} fill="white" fontFamily="Montserrat, sans-serif" fontSize="12">
+        <circle cx={margin + 80} cy={height + 25} r={6} fill="none" stroke="white" strokeWidth="2" />
+        <text x={margin + 95} y={height + 30} fill="white" fontFamily="Montserrat, sans-serif" fontSize="12">
           10-Year Avg (2016-2025)
         </text>
-        <line x1={margin + 260} y1={height + 15} x2={margin + 280} y2={height + 15}
+        <line x1={margin + 260} y1={height + 25} x2={margin + 280} y2={height + 25}
           stroke="#e91e63" strokeWidth="2" opacity="0.5" />
-        <circle cx={margin + 270} cy={height + 15} r={2.5} fill="#e91e63" opacity="0.5" />
-        <text x={margin + 290} y={height + 20} fill="white" fontFamily="Montserrat, sans-serif" fontSize="12">
+        <circle cx={margin + 270} cy={height + 25} r={2.5} fill="#e91e63" opacity="0.5" />
+        <text x={margin + 290} y={height + 30} fill="white" fontFamily="Montserrat, sans-serif" fontSize="12">
           14-day trail
         </text>
       </svg>
