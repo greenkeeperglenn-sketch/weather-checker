@@ -1,5 +1,5 @@
 // pages/index.js
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -39,11 +39,18 @@ export default function Home() {
   const [grayedYears, setGrayedYears] = useState(new Set());
 
   // Cave graph state
-  const [caveMode, setCaveMode] = useState(false);
+  const [activeTab, setActiveTab] = useState('standard');
   const [caveData, setCaveData] = useState(null);
   const [caveOverlayYear, setCaveOverlayYear] = useState('current'); // 'current' or a year number
   const [caveLoading, setCaveLoading] = useState(false);
   const [availableOverlayYears, setAvailableOverlayYears] = useState([]);
+
+  // Ternary graph state
+  const [ternaryData, setTernaryData] = useState(null);
+  const [ternaryLoading, setTernaryLoading] = useState(false);
+  const [ternaryDayIndex, setTernaryDayIndex] = useState(0);
+  const [ternaryPlaying, setTernaryPlaying] = useState(false);
+  const [ternarySelectedYear, setTernarySelectedYear] = useState(2024);
 
   // Location state
   const [selectedLocation, setSelectedLocation] = useState('bingley');
@@ -62,7 +69,8 @@ export default function Home() {
   // Chart container refs for copy-to-clipboard
   const standardChartRef = useRef(null);
   const caveChartRef = useRef(null);
-  const [copiedChart, setCopiedChart] = useState(null); // 'standard' | 'cave' | null
+  const ternaryChartRef = useRef(null);
+  const [copiedChart, setCopiedChart] = useState(null);
 
   const copyChartToClipboard = async (containerRef, chartName) => {
     const el = containerRef.current;
@@ -1019,6 +1027,275 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
+  // Ternary graph helpers
+  const dayIndexToMonthDay = (index) => {
+    const daysInMonths = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let remaining = index;
+    for (let m = 0; m < 12; m++) {
+      if (remaining < daysInMonths[m]) {
+        return `${String(m + 1).padStart(2, '0')}-${String(remaining + 1).padStart(2, '0')}`;
+      }
+      remaining -= daysInMonths[m];
+    }
+    return '12-31';
+  };
+
+  const dayIndexToLabel = (index) => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const daysInMonths = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let remaining = index;
+    for (let m = 0; m < 12; m++) {
+      if (remaining < daysInMonths[m]) return `${monthNames[m]} ${remaining + 1}`;
+      remaining -= daysInMonths[m];
+    }
+    return 'Dec 31';
+  };
+
+  const normalizeToPercent = (value, min, max) => {
+    if (value == null) return 0;
+    if (max === min) return 50;
+    return Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+  };
+
+  const ternaryToCartesian = (tempPct, etPct, dliPct) => {
+    const total = tempPct + etPct + dliPct;
+    if (total === 0) return { x: 0.5, y: Math.sqrt(3) / 6 };
+    const a = tempPct / total;
+    const b = etPct / total;
+    const c = dliPct / total;
+    const x = 0.5 * (2 * c + a);
+    const y = (Math.sqrt(3) / 2) * a;
+    return { x, y };
+  };
+
+  const generateTernaryGraph = async () => {
+    setTernaryLoading(true);
+    try {
+      const response = await fetch('/api/ternary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: currentLocation.lat, lon: currentLocation.lon })
+      });
+      const result = await response.json();
+      if (result.success) {
+        setTernaryData(result);
+      } else {
+        alert('Error fetching ternary data: ' + result.error);
+      }
+    } catch (error) {
+      alert('Error: ' + error.message);
+    } finally {
+      setTernaryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!ternaryPlaying) return;
+    const interval = setInterval(() => {
+      setTernaryDayIndex(prev => {
+        if (prev >= 365) {
+          setTernaryPlaying(false);
+          return 365;
+        }
+        return prev + 1;
+      });
+    }, 100);
+    return () => clearInterval(interval);
+  }, [ternaryPlaying]);
+
+  const renderTernaryChart = () => {
+    if (!ternaryData) return null;
+    const { perDay, extremes, tenYearAvg } = ternaryData;
+    const monthDay = dayIndexToMonthDay(ternaryDayIndex);
+    const dayData = perDay[monthDay];
+    if (!dayData) return null;
+
+    const yearTemp = dayData.temperature.find(v => v.year === ternarySelectedYear)?.value;
+    const yearEt = dayData.et.find(v => v.year === ternarySelectedYear)?.value;
+    const yearDli = dayData.dli.find(v => v.year === ternarySelectedYear)?.value;
+
+    const avgEntry = tenYearAvg[monthDay];
+    const hasYear = yearTemp != null && yearEt != null && yearDli != null;
+    const hasAvg = avgEntry && avgEntry.temperature != null && avgEntry.et != null && avgEntry.dli != null;
+
+    const tempPct = hasYear ? normalizeToPercent(yearTemp, extremes.temperature.min, extremes.temperature.max) : 33;
+    const etPct = hasYear ? normalizeToPercent(yearEt, extremes.et.min, extremes.et.max) : 33;
+    const dliPct = hasYear ? normalizeToPercent(yearDli, extremes.dli.min, extremes.dli.max) : 33;
+
+    const avgTempPct = hasAvg ? normalizeToPercent(avgEntry.temperature, extremes.temperature.min, extremes.temperature.max) : 33;
+    const avgEtPct = hasAvg ? normalizeToPercent(avgEntry.et, extremes.et.min, extremes.et.max) : 33;
+    const avgDliPct = hasAvg ? normalizeToPercent(avgEntry.dli, extremes.dli.min, extremes.dli.max) : 33;
+
+    const width = 600;
+    const margin = 60;
+    const triWidth = width - 2 * margin;
+    const triHeight = triWidth * Math.sqrt(3) / 2;
+    const height = triHeight + 2 * margin;
+
+    const top = { x: width / 2, y: margin };
+    const bottomLeft = { x: margin, y: margin + triHeight };
+    const bottomRight = { x: width - margin, y: margin + triHeight };
+
+    const toPixel = (coord) => ({
+      x: bottomLeft.x + coord.x * triWidth,
+      y: bottomLeft.y - coord.y * triWidth
+    });
+
+    const point = hasYear ? toPixel(ternaryToCartesian(tempPct, etPct, dliPct)) : null;
+    const avgPoint = hasAvg ? toPixel(ternaryToCartesian(avgTempPct, avgEtPct, avgDliPct)) : null;
+
+    // Build trail (last 14 days)
+    const trailPoints = [];
+    const trailDays = 14;
+    for (let i = Math.max(0, ternaryDayIndex - trailDays); i < ternaryDayIndex; i++) {
+      const md = dayIndexToMonthDay(i);
+      const dd = perDay[md];
+      if (!dd) continue;
+      const tv = dd.temperature.find(v => v.year === ternarySelectedYear)?.value;
+      const ev = dd.et.find(v => v.year === ternarySelectedYear)?.value;
+      const dv = dd.dli.find(v => v.year === ternarySelectedYear)?.value;
+      if (tv == null || ev == null || dv == null) continue;
+      const tp = normalizeToPercent(tv, extremes.temperature.min, extremes.temperature.max);
+      const ep = normalizeToPercent(ev, extremes.et.min, extremes.et.max);
+      const dp = normalizeToPercent(dv, extremes.dli.min, extremes.dli.max);
+      const px = toPixel(ternaryToCartesian(tp, ep, dp));
+      const opacity = 0.15 + 0.6 * ((i - Math.max(0, ternaryDayIndex - trailDays)) / trailDays);
+      trailPoints.push({ ...px, opacity });
+    }
+
+    // Grid lines helper: interpolate between vertices at fraction t
+    const lerp = (p1, p2, t) => ({ x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t });
+    const gridLines = [];
+    [0.2, 0.4, 0.6, 0.8].forEach(t => {
+      // Lines parallel to bottom (ET-DLI axis) — temperature gridlines
+      gridLines.push({ x1: lerp(top, bottomLeft, t), x2: lerp(top, bottomRight, t) });
+      // Lines parallel to left (Temp-ET axis) — DLI gridlines
+      gridLines.push({ x1: lerp(bottomRight, top, t), x2: lerp(bottomRight, bottomLeft, t) });
+      // Lines parallel to right (Temp-DLI axis) — ET gridlines
+      gridLines.push({ x1: lerp(bottomLeft, top, t), x2: lerp(bottomLeft, bottomRight, t) });
+    });
+
+    return (
+      <svg width="100%" viewBox={`0 0 ${width} ${height + 40}`} style={{ display: 'block', margin: '0 auto', maxWidth: '600px' }}>
+        {/* Grid lines */}
+        {gridLines.map((line, i) => (
+          <line key={i} x1={line.x1.x} y1={line.x1.y} x2={line.x2.x} y2={line.x2.y}
+            stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+        ))}
+
+        {/* Triangle */}
+        <polygon
+          points={`${top.x},${top.y} ${bottomLeft.x},${bottomLeft.y} ${bottomRight.x},${bottomRight.y}`}
+          fill="rgba(107, 63, 160, 0.08)"
+          stroke="rgba(255,255,255,0.4)"
+          strokeWidth="2"
+        />
+
+        {/* Axis labels */}
+        <text x={top.x} y={top.y - 15} textAnchor="middle" fill="white"
+          fontFamily="Montserrat, sans-serif" fontWeight="700" fontSize="14">Temp ({extremes.temperature.max.toFixed(0)}{'\u00B0'}C max)</text>
+        <text x={bottomLeft.x - 5} y={bottomLeft.y + 22} textAnchor="middle" fill="white"
+          fontFamily="Montserrat, sans-serif" fontWeight="700" fontSize="14">ET ({extremes.et.max.toFixed(1)}mm max)</text>
+        <text x={bottomRight.x + 5} y={bottomRight.y + 22} textAnchor="middle" fill="white"
+          fontFamily="Montserrat, sans-serif" fontWeight="700" fontSize="14">DLI ({extremes.dli.max.toFixed(0)} max)</text>
+
+        {/* Trail */}
+        {trailPoints.length > 1 && trailPoints.map((tp, i) => {
+          if (i === 0) return null;
+          const prev = trailPoints[i - 1];
+          return <line key={`tl-${i}`} x1={prev.x} y1={prev.y} x2={tp.x} y2={tp.y}
+            stroke="#e91e63" strokeWidth="1.5" opacity={tp.opacity} />;
+        })}
+        {trailPoints.map((tp, i) => (
+          <circle key={`tc-${i}`} cx={tp.x} cy={tp.y} r={2.5}
+            fill="#e91e63" opacity={tp.opacity} />
+        ))}
+
+        {/* Connecting line */}
+        {point && avgPoint && (
+          <line x1={point.x} y1={point.y} x2={avgPoint.x} y2={avgPoint.y}
+            stroke="rgba(255,255,255,0.3)" strokeWidth="1" strokeDasharray="4,3" />
+        )}
+
+        {/* 10-year average point */}
+        {avgPoint && (
+          <>
+            <circle cx={avgPoint.x} cy={avgPoint.y} r={9} fill="none" stroke="white" strokeWidth="2.5" />
+            <circle cx={avgPoint.x} cy={avgPoint.y} r={3} fill="white" />
+          </>
+        )}
+
+        {/* Current year point */}
+        {point && (
+          <circle cx={point.x} cy={point.y} r={10} fill="#e91e63" stroke="white" strokeWidth="2.5" />
+        )}
+
+        {/* Legend */}
+        <circle cx={margin} cy={height + 15} r={6} fill="#e91e63" stroke="white" strokeWidth="1.5" />
+        <text x={margin + 15} y={height + 20} fill="white" fontFamily="Montserrat, sans-serif" fontSize="12">
+          {ternarySelectedYear}
+        </text>
+        <circle cx={margin + 80} cy={height + 15} r={6} fill="none" stroke="white" strokeWidth="2" />
+        <text x={margin + 95} y={height + 20} fill="white" fontFamily="Montserrat, sans-serif" fontSize="12">
+          10-Year Avg (2016-2025)
+        </text>
+        <line x1={margin + 260} y1={height + 15} x2={margin + 280} y2={height + 15}
+          stroke="#e91e63" strokeWidth="2" opacity="0.5" />
+        <circle cx={margin + 270} cy={height + 15} r={2.5} fill="#e91e63" opacity="0.5" />
+        <text x={margin + 290} y={height + 20} fill="white" fontFamily="Montserrat, sans-serif" fontSize="12">
+          14-day trail
+        </text>
+      </svg>
+    );
+  };
+
+  const renderTernaryDataPanel = () => {
+    if (!ternaryData) return null;
+    const { perDay, extremes, tenYearAvg } = ternaryData;
+    const monthDay = dayIndexToMonthDay(ternaryDayIndex);
+    const dayData = perDay[monthDay];
+    const avgEntry = tenYearAvg[monthDay];
+    if (!dayData) return null;
+
+    const yearTemp = dayData.temperature.find(v => v.year === ternarySelectedYear)?.value;
+    const yearEt = dayData.et.find(v => v.year === ternarySelectedYear)?.value;
+    const yearDli = dayData.dli.find(v => v.year === ternarySelectedYear)?.value;
+
+    const rows = [
+      { label: 'Temperature', value: yearTemp, avgValue: avgEntry?.temperature, unit: '\u00B0C', min: extremes.temperature.min, max: extremes.temperature.max },
+      { label: 'ET\u2080', value: yearEt, avgValue: avgEntry?.et, unit: 'mm', min: extremes.et.min, max: extremes.et.max },
+      { label: 'DLI', value: yearDli, avgValue: avgEntry?.dli, unit: 'mol/m\u00B2/day', min: extremes.dli.min, max: extremes.dli.max }
+    ];
+
+    return (
+      <div style={{ fontSize: '13px', color: 'white' }}>
+        <h4 style={{ marginBottom: '15px', fontSize: '16px', fontWeight: '600', color: '#e91e63' }}>
+          {dayIndexToLabel(ternaryDayIndex)}
+        </h4>
+        {rows.map(row => (
+          <div key={row.label} style={{ marginBottom: '15px', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+            <div style={{ fontWeight: '600', marginBottom: '6px', color: '#e91e63' }}>{row.label}</div>
+            <div style={{ marginBottom: '3px' }}>
+              {ternarySelectedYear}: {row.value != null ? row.value.toFixed(1) : 'N/A'} {row.unit}
+              <span style={{ color: '#aaa', marginLeft: '8px' }}>
+                ({row.value != null ? normalizeToPercent(row.value, row.min, row.max).toFixed(0) : '-'}%)
+              </span>
+            </div>
+            <div style={{ color: '#aaa' }}>
+              10yr Avg: {row.avgValue != null ? row.avgValue.toFixed(1) : 'N/A'} {row.unit}
+              <span style={{ marginLeft: '8px' }}>
+                ({row.avgValue != null ? normalizeToPercent(row.avgValue, row.min, row.max).toFixed(0) : '-'}%)
+              </span>
+            </div>
+            <div style={{ color: '#666', fontSize: '11px', marginTop: '4px' }}>
+              Range: {row.min.toFixed(1)} – {row.max.toFixed(1)} {row.unit}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const ChartComponent = chartType === 'line' ? Line : Bar;
 
   // STRI brand colors
@@ -1144,11 +1421,11 @@ export default function Home() {
         <div style={{ padding: '20px 30px', background: '#f0f0f0', borderBottom: '2px solid #e0e0e0', fontFamily: "'Montserrat', sans-serif" }}>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button
-              onClick={() => setCaveMode(false)}
+              onClick={() => setActiveTab('standard')}
               style={{
                 padding: '12px 24px',
-                background: !caveMode ? striBrand.gradient : 'white',
-                color: !caveMode ? 'white' : '#333',
+                background: activeTab === 'standard' ? striBrand.gradient : 'white',
+                color: activeTab === 'standard' ? 'white' : '#333',
                 border: `2px solid ${striBrand.primary}`,
                 borderRadius: '8px',
                 cursor: 'pointer',
@@ -1160,11 +1437,11 @@ export default function Home() {
               Standard Chart
             </button>
             <button
-              onClick={() => setCaveMode(true)}
+              onClick={() => setActiveTab('cave')}
               style={{
                 padding: '12px 24px',
-                background: caveMode ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)' : 'white',
-                color: caveMode ? 'white' : '#333',
+                background: activeTab === 'cave' ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)' : 'white',
+                color: activeTab === 'cave' ? 'white' : '#333',
                 border: '2px solid #1a1a2e',
                 borderRadius: '8px',
                 cursor: 'pointer',
@@ -1175,13 +1452,29 @@ export default function Home() {
             >
               Cave Graph (Climate Envelope)
             </button>
+            <button
+              onClick={() => setActiveTab('ternary')}
+              style={{
+                padding: '12px 24px',
+                background: activeTab === 'ternary' ? 'linear-gradient(135deg, #6b3fa0 0%, #e91e63 100%)' : 'white',
+                color: activeTab === 'ternary' ? 'white' : '#333',
+                border: '2px solid #6b3fa0',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '15px',
+                fontFamily: "'Montserrat', sans-serif"
+              }}
+            >
+              Ternary Graph
+            </button>
           </div>
         </div>
 
         {/* Controls */}
         <div style={{ padding: '30px', background: '#f8f9fa', borderBottom: '2px solid #e9ecef', fontFamily: "'Montserrat', sans-serif" }}>
 
-          {!caveMode ? (
+          {activeTab === 'standard' && (
             <>
               {/* Standard Chart Controls */}
               {/* Date Range */}
@@ -1318,7 +1611,8 @@ export default function Home() {
                 </div>
               </div>
             </>
-          ) : (
+          )}
+          {activeTab === 'cave' && (
             <>
               {/* Cave Graph Controls */}
               <div style={{ marginBottom: '25px' }}>
@@ -1368,8 +1662,8 @@ export default function Home() {
             </>
           )}
 
-          {/* Metrics (shared) */}
-          <div style={{ marginBottom: '25px' }}>
+          {/* Metrics (shared - hidden for ternary which uses all three) */}
+          {activeTab !== 'ternary' && <div style={{ marginBottom: '25px' }}>
             <label style={{ display: 'block', fontWeight: '600', marginBottom: '10px', color: '#2d3748' }}>
               Select Metric:
               <span style={{ marginLeft: '10px', color: '#a0aec0', fontWeight: '400', fontSize: '0.9em' }}>
@@ -1397,10 +1691,68 @@ export default function Home() {
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
+
+          {/* Ternary Graph Controls */}
+          {activeTab === 'ternary' && (
+            <div style={{ marginBottom: '25px' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontWeight: '600', marginBottom: '10px', color: '#2d3748' }}>
+                  Select Year to Display:
+                </label>
+                <select
+                  value={ternarySelectedYear}
+                  onChange={(e) => setTernarySelectedYear(parseInt(e.target.value))}
+                  style={{
+                    padding: '10px 16px', borderRadius: '6px',
+                    border: '2px solid #6b3fa0', fontSize: '14px',
+                    fontWeight: '600', background: 'white', cursor: 'pointer'
+                  }}
+                >
+                  {Array.from({ length: 46 }, (_, i) => 2025 - i).map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              {ternaryData && (
+                <div>
+                  <label style={{ display: 'block', fontWeight: '600', marginBottom: '10px', color: '#2d3748' }}>
+                    Date: <span style={{ color: '#6b3fa0', fontSize: '1.1em' }}>
+                      {dayIndexToLabel(ternaryDayIndex)}
+                    </span>
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <button
+                      onClick={() => setTernaryPlaying(!ternaryPlaying)}
+                      style={{
+                        padding: '8px 16px', borderRadius: '6px',
+                        background: ternaryPlaying ? '#e53e3e' : 'linear-gradient(135deg, #6b3fa0 0%, #e91e63 100%)',
+                        color: 'white', border: 'none', cursor: 'pointer',
+                        fontWeight: '600', fontFamily: "'Montserrat', sans-serif", fontSize: '14px'
+                      }}
+                    >
+                      {ternaryPlaying ? 'Pause' : 'Play'}
+                    </button>
+                    <input
+                      type="range"
+                      min={0}
+                      max={365}
+                      value={ternaryDayIndex}
+                      onChange={(e) => {
+                        setTernaryPlaying(false);
+                        setTernaryDayIndex(parseInt(e.target.value));
+                      }}
+                      style={{ flex: 1, accentColor: '#6b3fa0' }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Accumulated Options (Standard Chart only) */}
-          {!caveMode && (
+          {activeTab === 'standard' && (
             <div style={{ marginBottom: '25px', padding: '15px', background: '#f0f7f0', borderRadius: '8px', border: `1px solid ${striBrand.secondary}` }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: accumulatedMode ? '15px' : '0' }}>
                 <input
@@ -1477,7 +1829,7 @@ export default function Home() {
 
           {/* Action Buttons */}
           <div style={{ display: 'flex', gap: '15px', marginTop: '20px' }}>
-            {!caveMode ? (
+            {activeTab === 'standard' && (
               <>
                 <button
                   onClick={generateChart}
@@ -1515,7 +1867,8 @@ export default function Home() {
                   </button>
                 )}
               </>
-            ) : (
+            )}
+            {activeTab === 'cave' && (
               <button
                 onClick={generateCaveGraph}
                 disabled={caveLoading}
@@ -1534,11 +1887,30 @@ export default function Home() {
                 {caveLoading ? 'Loading Historical Data...' : 'Generate Cave Graph'}
               </button>
             )}
+            {activeTab === 'ternary' && (
+              <button
+                onClick={generateTernaryGraph}
+                disabled={ternaryLoading}
+                style={{
+                  background: 'linear-gradient(135deg, #6b3fa0 0%, #e91e63 100%)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 30px',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: ternaryLoading ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Montserrat', sans-serif"
+                }}
+              >
+                {ternaryLoading ? 'Loading All Metrics...' : 'Generate Ternary Graph'}
+              </button>
+            )}
           </div>
         </div>
 
         {/* Standard Chart Display */}
-        {!caveMode && chartData && (
+        {activeTab === 'standard' && chartData && (
           <div style={{ padding: '30px', fontFamily: "'Montserrat', sans-serif" }}>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
               <button
@@ -1635,7 +2007,7 @@ export default function Home() {
         )}
 
         {/* Cave Graph Display */}
-        {caveMode && caveData && (
+        {activeTab === 'cave' && caveData && (
           <div style={{ padding: '30px', fontFamily: "'Montserrat', sans-serif" }}>
             <div ref={caveChartRef} style={{ background: '#1a1a2e', padding: '30px', borderRadius: '12px', position: 'relative' }}>
               <button
@@ -1701,6 +2073,79 @@ export default function Home() {
                   <li><strong style={{ color: striBrand.accent }}>Lime green line:</strong> {caveOverlayYear} historical data</li>
                 )}
                 <li><strong style={{ color: '#ff0000' }}>Red dashed line:</strong> Today's date</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* Ternary Graph Display */}
+        {activeTab === 'ternary' && ternaryData && (
+          <div style={{ padding: '30px', fontFamily: "'Montserrat', sans-serif" }}>
+            <div ref={ternaryChartRef} style={{
+              background: 'linear-gradient(135deg, #1a1a2e 0%, #2d1b4e 100%)',
+              padding: '30px', borderRadius: '12px', position: 'relative'
+            }}>
+              <button
+                data-html-to-canvas-ignore="true"
+                onClick={() => copyChartToClipboard(ternaryChartRef, 'ternary')}
+                title="Copy chart to clipboard"
+                style={{
+                  position: 'absolute', top: '10px', left: '10px', zIndex: 10,
+                  background: copiedChart === 'ternary' ? '#4CAF50' : 'rgba(255,255,255,0.1)',
+                  border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  fontFamily: "'Montserrat', sans-serif", fontSize: '12px', fontWeight: '600',
+                  color: copiedChart === 'ternary' ? 'white' : '#aaa', transition: 'all 0.2s'
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                {copiedChart === 'ternary' ? 'Copied!' : 'Copy'}
+              </button>
+              <img
+                src="/STRIlogo.png"
+                alt="STRI"
+                style={{
+                  position: 'absolute', top: '20px', right: '20px',
+                  height: '160px', opacity: 0.7
+                }}
+              />
+
+              <h3 style={{
+                color: 'white', marginBottom: '20px', textAlign: 'center',
+                fontFamily: "'Montserrat', sans-serif", fontWeight: '600'
+              }}>
+                Ternary Climate Profile: {dayIndexToLabel(ternaryDayIndex)}
+                <span style={{ display: 'block', fontSize: '0.8em', color: '#aaa', marginTop: '5px', fontWeight: '400' }}>
+                  ET / DLI / Temperature — {ternarySelectedYear} vs 10-Year Average (2016–2025)
+                </span>
+              </h3>
+
+              <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <div style={{ flex: '1 1 500px', maxWidth: '600px' }}>
+                  {renderTernaryChart()}
+                </div>
+                <div style={{ flex: '0 0 250px' }}>
+                  {renderTernaryDataPanel()}
+                </div>
+              </div>
+            </div>
+
+            <div style={{
+              background: '#2d2d44', borderLeft: '4px solid #e91e63',
+              padding: '20px', margin: '20px 0', borderRadius: '8px'
+            }}>
+              <h3 style={{ color: '#e91e63', marginBottom: '10px', fontFamily: "'Montserrat', sans-serif" }}>
+                Understanding the Ternary Graph
+              </h3>
+              <ul style={{ color: '#ccc', lineHeight: '1.8', fontFamily: "'Montserrat', sans-serif" }}>
+                <li><strong style={{ color: 'white' }}>Three axes:</strong> Temperature (top), ET (bottom-left), DLI (bottom-right)</li>
+                <li><strong style={{ color: 'white' }}>Each metric</strong> is normalized 0–100% based on historical extremes (1980–2025)</li>
+                <li><strong style={{ color: 'white' }}>The point position</strong> shows the relative balance between the three metrics</li>
+                <li><strong style={{ color: '#e91e63' }}>Filled circle:</strong> Selected year's data for the current date</li>
+                <li><strong style={{ color: 'white' }}>Hollow circle:</strong> 10-year average (2016–2025) for comparison</li>
+                <li><strong style={{ color: 'white' }}>Fading trail:</strong> Shows the path of the last 14 days</li>
               </ul>
             </div>
           </div>
