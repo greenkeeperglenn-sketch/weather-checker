@@ -1249,10 +1249,10 @@ export default function Home() {
             );
           }
 
-          // --- RIGHT SIDE: DLI — 0% at top, 100% at bottom-right ---
+          // --- RIGHT SIDE: DLI — 0% at bottom-right, 100% at top ---
           {
-            const mid = lp(top, bottomRight, 0.5);
-            const angle = Math.atan2(bottomRight.y - top.y, bottomRight.x - top.x) * 180 / Math.PI;
+            const mid = lp(bottomRight, top, 0.5);
+            const angle = Math.atan2(top.y - bottomRight.y, top.x - bottomRight.x) * 180 / Math.PI;
             axisElements.push(
               <text key="dli-label" x={mid.x + 28} y={mid.y - 2}
                 textAnchor="middle" fill="#4fc3f7" fontFamily="Montserrat, sans-serif"
@@ -1262,7 +1262,7 @@ export default function Home() {
             );
             tickPcts.forEach(pct => {
               const t = pct / 100;
-              const p = lp(top, bottomRight, t);
+              const p = lp(bottomRight, top, t);
               axisElements.push(
                 <line key={`dli-tick-${pct}`}
                   x1={p.x} y1={p.y}
@@ -1277,8 +1277,8 @@ export default function Home() {
               );
             });
             // Low/High
-            const lowP = lp(top, bottomRight, 0);
-            const highP = lp(top, bottomRight, 1);
+            const lowP = lp(bottomRight, top, 0);
+            const highP = lp(bottomRight, top, 1);
             axisElements.push(
               <text key="dli-low" x={lowP.x + dliTickDir.x * (tickLen + 30)} y={lowP.y + dliTickDir.y * (tickLen + 30) + 3}
                 textAnchor="middle" fill="rgba(79,195,247,0.5)"
