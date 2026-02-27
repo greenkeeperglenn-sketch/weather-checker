@@ -74,6 +74,7 @@ export default function Home() {
   const ternaryChartRef = useRef(null);
   const scatter3dRef = useRef(null);
   const plotlyInitRef = useRef(false);
+  const cameraRef = useRef(null);
   const [copiedChart, setCopiedChart] = useState(null);
 
   const copyChartToClipboard = async (containerRef, chartName) => {
@@ -1256,24 +1257,38 @@ export default function Home() {
 
       const config = { responsive: true, displayModeBar: false };
 
+      // Restore saved camera position if we have one
+      if (cameraRef.current) {
+        layout.scene.camera = cameraRef.current;
+      }
+
       if (plotlyInitRef.current) {
-        // Preserve the current camera angle when updating
-        const currentCamera = scatter3dRef.current._fullLayout?.scene?._scene?.getCamera();
-        if (currentCamera) {
-          layout.scene.camera = currentCamera;
-        }
         PlotlyLib.react(scatter3dRef.current, traces, layout, config);
       } else {
         PlotlyLib.newPlot(scatter3dRef.current, traces, layout, config);
         plotlyInitRef.current = true;
       }
 
+      // Save camera whenever the user rotates/zooms
+      scatter3dRef.current.removeAllListeners('plotly_relayout');
+      scatter3dRef.current.on('plotly_relayout', (relayoutData) => {
+        if (relayoutData['scene.camera']) {
+          cameraRef.current = relayoutData['scene.camera'];
+        } else if (relayoutData['scene.camera.eye'] || relayoutData['scene.camera.center'] || relayoutData['scene.camera.up']) {
+          cameraRef.current = {
+            ...(cameraRef.current || {}),
+            ...(relayoutData['scene.camera.eye'] && { eye: relayoutData['scene.camera.eye'] }),
+            ...(relayoutData['scene.camera.center'] && { center: relayoutData['scene.camera.center'] }),
+            ...(relayoutData['scene.camera.up'] && { up: relayoutData['scene.camera.up'] }),
+          };
+        }
+      });
+
       // Click handler: clicking a point in the "all days" trace selects that day
       scatter3dRef.current.removeAllListeners('plotly_click');
       scatter3dRef.current.on('plotly_click', (data) => {
         if (data.points && data.points.length > 0) {
           const pt = data.points[0];
-          // Only respond to clicks on trace 0 (the all-days scatter)
           if (pt.curveNumber === 0 && pt.pointNumber != null) {
             const dayIdx = allDayIndices[pt.pointNumber];
             if (dayIdx != null) {
