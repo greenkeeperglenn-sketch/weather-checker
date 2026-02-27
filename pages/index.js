@@ -53,6 +53,7 @@ export default function Home() {
   const [ternarySelectedYear, setTernarySelectedYear] = useState(2024);
   const [showAverage, setShowAverage] = useState(true);
   const [avgAsLine, setAvgAsLine] = useState(false);
+  const [visibleMonths, setVisibleMonths] = useState(new Set([0,1,2,3,4,5,6,7,8,9,10,11])); // all months on
 
   // Location state
   const [selectedLocation, setSelectedLocation] = useState('bingley');
@@ -1033,6 +1034,16 @@ export default function Home() {
   };
 
   // Ternary graph helpers
+  const dayIndexToMonth = (index) => {
+    const daysInMonths = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let remaining = index;
+    for (let m = 0; m < 12; m++) {
+      if (remaining < daysInMonths[m]) return m;
+      remaining -= daysInMonths[m];
+    }
+    return 11;
+  };
+
   const dayIndexToMonthDay = (index) => {
     const daysInMonths = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     let remaining = index;
@@ -1099,9 +1110,10 @@ export default function Home() {
     import('plotly.js-gl3d-dist-min').then(Plotly => {
       const PlotlyLib = Plotly.default || Plotly;
 
-      // Build all 365 days for selected year
+      // Build all 365 days for selected year (filtered by visible months)
       const allTemp = [], allEt = [], allDli = [], allText = [], allColors = [], allDayIndices = [];
       for (let i = 0; i <= 365; i++) {
+        if (!visibleMonths.has(dayIndexToMonth(i))) continue;
         const md = dayIndexToMonthDay(i);
         const dd = perDay[md];
         if (!dd) continue;
@@ -1117,9 +1129,10 @@ export default function Home() {
         allDayIndices.push(i);
       }
 
-      // Build 10-year average for all 365 days
+      // Build 10-year average (filtered by visible months)
       const avgTemp = [], avgEt = [], avgDli = [], avgText = [];
       for (let i = 0; i <= 365; i++) {
+        if (!visibleMonths.has(dayIndexToMonth(i))) continue;
         const md = dayIndexToMonthDay(i);
         const avg = tenYearAvg[md];
         if (!avg || avg.temperature == null || avg.et == null || avg.dli == null) continue;
@@ -1309,7 +1322,7 @@ export default function Home() {
         });
       }
     };
-  }, [ternaryData, ternaryDayIndex, ternarySelectedYear, showAverage, avgAsLine]);
+  }, [ternaryData, ternaryDayIndex, ternarySelectedYear, showAverage, avgAsLine, visibleMonths]);
 
   const renderTernaryChart = () => {
     if (!ternaryData) return null;
@@ -1852,6 +1865,45 @@ export default function Home() {
                     >
                       {avgAsLine ? 'Avg: Line' : 'Avg: Dots'}
                     </button>
+                  </div>
+                  <div style={{ marginTop: '15px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <label style={{ fontWeight: '600', fontSize: '13px', color: '#2d3748' }}>Months:</label>
+                      <button
+                        onClick={() => setVisibleMonths(new Set([0,1,2,3,4,5,6,7,8,9,10,11]))}
+                        style={{
+                          padding: '3px 10px', borderRadius: '4px', fontSize: '11px',
+                          background: visibleMonths.size === 12 ? '#6b3fa0' : 'rgba(0,0,0,0.05)',
+                          color: visibleMonths.size === 12 ? 'white' : '#666',
+                          border: '1px solid #ccc', cursor: 'pointer', fontWeight: '600',
+                          fontFamily: "'Montserrat', sans-serif"
+                        }}
+                      >All</button>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((name, idx) => {
+                        const active = visibleMonths.has(idx);
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              const next = new Set(visibleMonths);
+                              if (active) { next.delete(idx); } else { next.add(idx); }
+                              if (next.size > 0) setVisibleMonths(next);
+                            }}
+                            style={{
+                              padding: '4px 8px', borderRadius: '4px', fontSize: '11px',
+                              background: active ? '#6b3fa0' : 'rgba(0,0,0,0.05)',
+                              color: active ? 'white' : '#999',
+                              border: active ? '1.5px solid #6b3fa0' : '1.5px solid #ddd',
+                              cursor: 'pointer', fontWeight: '600',
+                              fontFamily: "'Montserrat', sans-serif",
+                              transition: 'all 0.15s', minWidth: '38px'
+                            }}
+                          >{name}</button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
