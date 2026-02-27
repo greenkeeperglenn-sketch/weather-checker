@@ -51,6 +51,8 @@ export default function Home() {
   const [ternaryDayIndex, setTernaryDayIndex] = useState(0);
   const [ternaryPlaying, setTernaryPlaying] = useState(false);
   const [ternarySelectedYear, setTernarySelectedYear] = useState(2024);
+  const [showAverage, setShowAverage] = useState(true);
+  const [avgAsLine, setAvgAsLine] = useState(false);
 
   // Location state
   const [selectedLocation, setSelectedLocation] = useState('bingley');
@@ -1155,17 +1157,32 @@ export default function Home() {
         showlegend: true
       });
 
-      // Trace 2: 10-year average trajectory
-      traces.push({
-        type: 'scatter3d',
-        mode: 'markers',
-        x: avgTemp, y: avgEt, z: avgDli,
-        text: avgText,
-        marker: { size: 2, color: 'rgba(255,255,255,0.25)' },
-        hovertemplate: '%{text}<br>Avg Temp: %{x:.1f}\u00B0C<br>Avg ET: %{y:.2f}mm<br>Avg DLI: %{z:.1f}<extra></extra>',
-        name: '10-Year Avg',
-        showlegend: true
-      });
+      // Trace 2: 10-year average trajectory (dots or line, toggled by user)
+      if (showAverage) {
+        if (avgAsLine) {
+          traces.push({
+            type: 'scatter3d',
+            mode: 'lines',
+            x: avgTemp, y: avgEt, z: avgDli,
+            text: avgText,
+            line: { color: 'rgba(255,255,255,0.5)', width: 3 },
+            hovertemplate: '%{text}<br>Avg Temp: %{x:.1f}\u00B0C<br>Avg ET: %{y:.2f}mm<br>Avg DLI: %{z:.1f}<extra></extra>',
+            name: '10-Year Avg (line)',
+            showlegend: true
+          });
+        } else {
+          traces.push({
+            type: 'scatter3d',
+            mode: 'markers',
+            x: avgTemp, y: avgEt, z: avgDli,
+            text: avgText,
+            marker: { size: 2, color: 'rgba(255,255,255,0.25)' },
+            hovertemplate: '%{text}<br>Avg Temp: %{x:.1f}\u00B0C<br>Avg ET: %{y:.2f}mm<br>Avg DLI: %{z:.1f}<extra></extra>',
+            name: '10-Year Avg',
+            showlegend: true
+          });
+        }
+      }
 
       // Trace 3: Highlighted current day
       if (hasYear) {
@@ -1182,7 +1199,7 @@ export default function Home() {
       }
 
       // Trace 4: Highlighted average for same day
-      if (hasAvg) {
+      if (showAverage && hasAvg) {
         traces.push({
           type: 'scatter3d',
           mode: 'markers',
@@ -1195,7 +1212,7 @@ export default function Home() {
       }
 
       // Trace 5: Connecting line between current year and average
-      if (hasYear && hasAvg) {
+      if (showAverage && hasYear && hasAvg) {
         traces.push({
           type: 'scatter3d',
           mode: 'lines',
@@ -1255,7 +1272,7 @@ export default function Home() {
         });
       }
     };
-  }, [ternaryData, ternaryDayIndex, ternarySelectedYear]);
+  }, [ternaryData, ternaryDayIndex, ternarySelectedYear, showAverage, avgAsLine]);
 
   const renderTernaryChart = () => {
     if (!ternaryData) return null;
@@ -1754,6 +1771,37 @@ export default function Home() {
                       }}
                       style={{ flex: 1, accentColor: '#6b3fa0' }}
                     />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                    <button
+                      onClick={() => setShowAverage(!showAverage)}
+                      style={{
+                        padding: '8px 16px', borderRadius: '6px',
+                        background: showAverage ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.05)',
+                        color: showAverage ? '#6b3fa0' : '#999',
+                        border: showAverage ? '2px solid #6b3fa0' : '2px solid #ccc',
+                        cursor: 'pointer', fontWeight: '600',
+                        fontFamily: "'Montserrat', sans-serif", fontSize: '13px',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {showAverage ? '10yr Avg: ON' : '10yr Avg: OFF'}
+                    </button>
+                    <button
+                      onClick={() => setAvgAsLine(!avgAsLine)}
+                      disabled={!showAverage}
+                      style={{
+                        padding: '8px 16px', borderRadius: '6px',
+                        background: avgAsLine ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.05)',
+                        color: !showAverage ? '#ccc' : avgAsLine ? '#6b3fa0' : '#999',
+                        border: !showAverage ? '2px solid #eee' : avgAsLine ? '2px solid #6b3fa0' : '2px solid #ccc',
+                        cursor: showAverage ? 'pointer' : 'not-allowed',
+                        fontWeight: '600', fontFamily: "'Montserrat', sans-serif", fontSize: '13px',
+                        transition: 'all 0.2s', opacity: showAverage ? 1 : 0.5
+                      }}
+                    >
+                      {avgAsLine ? 'Avg: Line' : 'Avg: Dots'}
+                    </button>
                   </div>
                 </div>
               )}
