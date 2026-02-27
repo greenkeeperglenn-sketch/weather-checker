@@ -75,6 +75,8 @@ export default function Home() {
   const ternaryChartRef = useRef(null);
   const scatter3dRef = useRef(null);
   const plotlyInitRef = useRef(false);
+  const deviationRef = useRef(null);
+  const deviationInitRef = useRef(false);
   const cameraRef = useRef(null);
   const [copiedChart, setCopiedChart] = useState(null);
 
@@ -1324,6 +1326,159 @@ export default function Home() {
     };
   }, [ternaryData, ternaryDayIndex, ternarySelectedYear, showAverage, avgAsLine, visibleMonths]);
 
+  // Deviation line chart (% from average for each metric)
+  useEffect(() => {
+    if (!deviationRef.current || !ternaryData) return;
+    const { perDay, tenYearAvg } = ternaryData;
+
+    import('plotly.js-gl3d-dist-min').then(Plotly => {
+      const PlotlyLib = Plotly.default || Plotly;
+
+      const metrics = [
+        { key: 'temperature', label: 'Temperature', color: '#ff9800' },
+        { key: 'et', label: 'ET\u2080', color: '#66bb6a' },
+        { key: 'dli', label: 'DLI', color: '#4fc3f7' }
+      ];
+
+      const traces = [];
+
+      metrics.forEach((metric, mi) => {
+        const xDays = [], yDeviation = [], hoverTexts = [];
+
+        for (let i = 0; i <= 365; i++) {
+          if (!visibleMonths.has(dayIndexToMonth(i))) continue;
+          const md = dayIndexToMonthDay(i);
+          const dd = perDay[md];
+          const avg = tenYearAvg[md];
+          if (!dd || !avg || avg[metric.key] == null) continue;
+          const actual = dd[metric.key].find(v => v.year === ternarySelectedYear)?.value;
+          if (actual == null || avg[metric.key] === 0) continue;
+          const pct = ((actual - avg[metric.key]) / Math.abs(avg[metric.key])) * 100;
+          xDays.push(i);
+          yDeviation.push(pct);
+          hoverTexts.push(`${dayIndexToLabel(i)}<br>${metric.label}: ${actual.toFixed(1)}<br>Avg: ${avg[metric.key].toFixed(1)}<br>${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`);
+        }
+
+        // Flat baseline at 0%
+        traces.push({
+          x: xDays,
+          y: xDays.map(() => 0),
+          mode: 'lines',
+          line: { color: metric.color, width: 2, dash: 'dot' },
+          name: `${metric.label} avg`,
+          showlegend: true,
+          hoverinfo: 'skip',
+          xaxis: mi === 0 ? 'x' : `x${mi + 1}`,
+          yaxis: mi === 0 ? 'y' : `y${mi + 1}`
+        });
+
+        // Wavy actual line
+        traces.push({
+          x: xDays,
+          y: yDeviation,
+          mode: 'lines',
+          line: { color: metric.color, width: 2 },
+          fill: 'tozeroy',
+          fillcolor: metric.color + '20',
+          name: `${metric.label} ${ternarySelectedYear}`,
+          showlegend: true,
+          text: hoverTexts,
+          hovertemplate: '%{text}<extra></extra>',
+          xaxis: mi === 0 ? 'x' : `x${mi + 1}`,
+          yaxis: mi === 0 ? 'y' : `y${mi + 1}`
+        });
+
+        // Vertical marker for selected day
+        if (visibleMonths.has(dayIndexToMonth(ternaryDayIndex))) {
+          const md = dayIndexToMonthDay(ternaryDayIndex);
+          const dd = perDay[md];
+          const avg = tenYearAvg[md];
+          if (dd && avg && avg[metric.key] != null) {
+            const actual = dd[metric.key].find(v => v.year === ternarySelectedYear)?.value;
+            if (actual != null && avg[metric.key] !== 0) {
+              const pct = ((actual - avg[metric.key]) / Math.abs(avg[metric.key])) * 100;
+              traces.push({
+                x: [ternaryDayIndex],
+                y: [pct],
+                mode: 'markers',
+                marker: { size: 10, color: '#e91e63', symbol: 'diamond' },
+                showlegend: false,
+                hovertemplate: `${dayIndexToLabel(ternaryDayIndex)}<br>${metric.label}: ${pct > 0 ? '+' : ''}${pct.toFixed(1)}%<extra></extra>`,
+                xaxis: mi === 0 ? 'x' : `x${mi + 1}`,
+                yaxis: mi === 0 ? 'y' : `y${mi + 1}`
+              });
+            }
+          }
+        }
+      });
+
+      // Month tick positions
+      const monthStarts = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335];
+      const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+      const layout = {
+        grid: { rows: 3, columns: 1, pattern: 'independent', roworder: 'top to bottom' },
+        height: 420,
+        margin: { t: 30, b: 40, l: 60, r: 20 },
+        paper_bgcolor: '#1a1a2e',
+        plot_bgcolor: '#1a1a2e',
+        font: { color: '#ccc', family: "'Montserrat', sans-serif", size: 11 },
+        legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.08, font: { size: 10 } },
+        xaxis: {
+          tickvals: monthStarts, ticktext: monthNames,
+          gridcolor: 'rgba(255,255,255,0.07)', zeroline: false, domain: [0, 1],
+          showticklabels: false
+        },
+        yaxis: {
+          title: { text: 'Temp %', font: { size: 10, color: '#ff9800' } },
+          gridcolor: 'rgba(255,255,255,0.07)', zeroline: true,
+          zerolinecolor: 'rgba(255,255,255,0.2)', zerolinewidth: 1,
+          domain: [0.72, 1]
+        },
+        xaxis2: {
+          tickvals: monthStarts, ticktext: monthNames,
+          gridcolor: 'rgba(255,255,255,0.07)', zeroline: false, domain: [0, 1],
+          showticklabels: false
+        },
+        yaxis2: {
+          title: { text: 'ET %', font: { size: 10, color: '#66bb6a' } },
+          gridcolor: 'rgba(255,255,255,0.07)', zeroline: true,
+          zerolinecolor: 'rgba(255,255,255,0.2)', zerolinewidth: 1,
+          domain: [0.37, 0.65]
+        },
+        xaxis3: {
+          tickvals: monthStarts, ticktext: monthNames,
+          gridcolor: 'rgba(255,255,255,0.07)', zeroline: false, domain: [0, 1]
+        },
+        yaxis3: {
+          title: { text: 'DLI %', font: { size: 10, color: '#4fc3f7' } },
+          gridcolor: 'rgba(255,255,255,0.07)', zeroline: true,
+          zerolinecolor: 'rgba(255,255,255,0.2)', zerolinewidth: 1,
+          domain: [0.0, 0.28]
+        }
+      };
+
+      const config = { responsive: true, displayModeBar: false };
+
+      if (deviationInitRef.current) {
+        PlotlyLib.react(deviationRef.current, traces, layout, config);
+      } else {
+        PlotlyLib.newPlot(deviationRef.current, traces, layout, config);
+        deviationInitRef.current = true;
+      }
+    });
+
+    return () => {
+      if (deviationRef.current && deviationInitRef.current) {
+        import('plotly.js-gl3d-dist-min').then(Plotly => {
+          const PlotlyLib = Plotly.default || Plotly;
+          if (deviationRef.current) PlotlyLib.purge(deviationRef.current);
+          deviationInitRef.current = false;
+        });
+      }
+    };
+  }, [ternaryData, ternaryDayIndex, ternarySelectedYear, visibleMonths]);
+
   const renderTernaryChart = () => {
     if (!ternaryData) return null;
     return (
@@ -2289,6 +2444,20 @@ export default function Home() {
                   {renderTernaryDataPanel()}
                 </div>
               </div>
+            </div>
+
+            {/* Deviation from Average chart */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1a1a2e 0%, #2d1b4e 100%)',
+              padding: '25px', borderRadius: '12px', marginTop: '20px'
+            }}>
+              <h3 style={{ color: 'white', marginBottom: '15px', fontSize: '16px', fontWeight: '600', fontFamily: "'Montserrat', sans-serif" }}>
+                <span style={{ color: '#e91e63' }}>{ternarySelectedYear}</span> Deviation from 10-Year Average
+                <span style={{ color: '#888', fontSize: '12px', fontWeight: '400', marginLeft: '10px' }}>
+                  Flat dotted line = average (0%) · Wavy line = {ternarySelectedYear} actual (% difference)
+                </span>
+              </h3>
+              <div ref={deviationRef} style={{ width: '100%', height: '420px' }} />
             </div>
 
             <div style={{
