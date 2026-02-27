@@ -1099,7 +1099,7 @@ export default function Home() {
       const PlotlyLib = Plotly.default || Plotly;
 
       // Build all 365 days for selected year
-      const allTemp = [], allEt = [], allDli = [], allText = [], allColors = [];
+      const allTemp = [], allEt = [], allDli = [], allText = [], allColors = [], allDayIndices = [];
       for (let i = 0; i <= 365; i++) {
         const md = dayIndexToMonthDay(i);
         const dd = perDay[md];
@@ -1113,6 +1113,7 @@ export default function Home() {
         allDli.push(dv);
         allText.push(dayIndexToLabel(i));
         allColors.push(i);
+        allDayIndices.push(i);
       }
 
       // Build 10-year average for all 365 days
@@ -1261,6 +1262,22 @@ export default function Home() {
         PlotlyLib.newPlot(scatter3dRef.current, traces, layout, config);
         plotlyInitRef.current = true;
       }
+
+      // Click handler: clicking a point in the "all days" trace selects that day
+      scatter3dRef.current.removeAllListeners('plotly_click');
+      scatter3dRef.current.on('plotly_click', (data) => {
+        if (data.points && data.points.length > 0) {
+          const pt = data.points[0];
+          // Only respond to clicks on trace 0 (the all-days scatter)
+          if (pt.curveNumber === 0 && pt.pointNumber != null) {
+            const dayIdx = allDayIndices[pt.pointNumber];
+            if (dayIdx != null) {
+              setTernaryPlaying(false);
+              setTernaryDayIndex(dayIdx);
+            }
+          }
+        }
+      });
     });
 
     return () => {
@@ -1294,9 +1311,9 @@ export default function Home() {
     const yearDli = dayData.dli.find(v => v.year === ternarySelectedYear)?.value;
 
     const rows = [
-      { label: 'Temperature', value: yearTemp, avgValue: avgEntry?.temperature, unit: '\u00B0C', min: extremes.temperature.min, max: extremes.temperature.max },
-      { label: 'ET\u2080', value: yearEt, avgValue: avgEntry?.et, unit: 'mm', min: extremes.et.min, max: extremes.et.max },
-      { label: 'DLI', value: yearDli, avgValue: avgEntry?.dli, unit: 'mol/m\u00B2/day', min: extremes.dli.min, max: extremes.dli.max }
+      { label: 'Temperature', color: '#ff9800', value: yearTemp, avgValue: avgEntry?.temperature, unit: '\u00B0C', min: extremes.temperature.min, max: extremes.temperature.max },
+      { label: 'ET\u2080', color: '#66bb6a', value: yearEt, avgValue: avgEntry?.et, unit: 'mm', min: extremes.et.min, max: extremes.et.max },
+      { label: 'DLI', color: '#4fc3f7', value: yearDli, avgValue: avgEntry?.dli, unit: 'mol/m\u00B2/day', min: extremes.dli.min, max: extremes.dli.max }
     ];
 
     return (
@@ -1304,20 +1321,33 @@ export default function Home() {
         <h4 style={{ marginBottom: '15px', fontSize: '16px', fontWeight: '600', color: '#e91e63' }}>
           {dayIndexToLabel(ternaryDayIndex)}
         </h4>
-        {rows.map(row => (
-          <div key={row.label} style={{ marginBottom: '15px', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-            <div style={{ fontWeight: '600', marginBottom: '6px', color: '#e91e63' }}>{row.label}</div>
-            <div style={{ marginBottom: '3px' }}>
-              {ternarySelectedYear}: {row.value != null ? row.value.toFixed(1) : 'N/A'} {row.unit}
+        {rows.map(row => {
+          const diff = (row.value != null && row.avgValue != null) ? row.value - row.avgValue : null;
+          const diffPct = (diff != null && row.avgValue !== 0) ? (diff / row.avgValue) * 100 : null;
+          const diffColor = diff != null ? (diff > 0 ? '#ff9800' : diff < 0 ? '#4fc3f7' : '#aaa') : '#aaa';
+          return (
+            <div key={row.label} style={{ marginBottom: '15px', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+              <div style={{ fontWeight: '600', marginBottom: '6px', color: row.color }}>{row.label}</div>
+              <div style={{ marginBottom: '3px' }}>
+                {ternarySelectedYear}: {row.value != null ? row.value.toFixed(1) : 'N/A'} {row.unit}
+              </div>
+              <div style={{ color: '#aaa', marginBottom: '3px' }}>
+                10yr Avg: {row.avgValue != null ? row.avgValue.toFixed(1) : 'N/A'} {row.unit}
+              </div>
+              {diff != null && (
+                <div style={{ color: diffColor, fontWeight: '600', fontSize: '12px' }}>
+                  {diff > 0 ? '+' : ''}{diff.toFixed(1)} {row.unit} vs avg
+                  {diffPct != null && <span style={{ color: '#888', fontWeight: '400', marginLeft: '6px' }}>
+                    ({diffPct > 0 ? '+' : ''}{diffPct.toFixed(0)}%)
+                  </span>}
+                </div>
+              )}
+              <div style={{ color: '#666', fontSize: '11px', marginTop: '4px' }}>
+                Range: {row.min.toFixed(1)} – {row.max.toFixed(1)} {row.unit}
+              </div>
             </div>
-            <div style={{ color: '#aaa' }}>
-              10yr Avg: {row.avgValue != null ? row.avgValue.toFixed(1) : 'N/A'} {row.unit}
-            </div>
-            <div style={{ color: '#666', fontSize: '11px', marginTop: '4px' }}>
-              Range: {row.min.toFixed(1)} – {row.max.toFixed(1)} {row.unit}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
