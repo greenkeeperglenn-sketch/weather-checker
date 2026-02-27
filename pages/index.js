@@ -70,6 +70,8 @@ export default function Home() {
   const standardChartRef = useRef(null);
   const caveChartRef = useRef(null);
   const ternaryChartRef = useRef(null);
+  const scatter3dRef = useRef(null);
+  const plotlyInitRef = useRef(false);
   const [copiedChart, setCopiedChart] = useState(null);
 
   const copyChartToClipboard = async (containerRef, chartName) => {
@@ -1051,23 +1053,6 @@ export default function Home() {
     return 'Dec 31';
   };
 
-  const normalizeToPercent = (value, min, max) => {
-    if (value == null) return 0;
-    if (max === min) return 50;
-    return Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
-  };
-
-  const ternaryToCartesian = (tempPct, etPct, dliPct) => {
-    const total = tempPct + etPct + dliPct;
-    if (total === 0) return { x: 0.5, y: Math.sqrt(3) / 6 };
-    const a = tempPct / total;
-    const b = etPct / total;
-    const c = dliPct / total;
-    const x = 0.5 * (2 * c + a);
-    const y = (Math.sqrt(3) / 2) * a;
-    return { x, y };
-  };
-
   const generateTernaryGraph = async () => {
     setTernaryLoading(true);
     try {
@@ -1103,305 +1088,179 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [ternaryPlaying]);
 
+  // 3D scatter plot rendering via Plotly
+  useEffect(() => {
+    if (!scatter3dRef.current || !ternaryData) return;
+    const { perDay, extremes, tenYearAvg } = ternaryData;
+
+    import('plotly.js-gl3d-dist-min').then(Plotly => {
+      const PlotlyLib = Plotly.default || Plotly;
+
+      // Build all 365 days for selected year
+      const allTemp = [], allEt = [], allDli = [], allText = [], allColors = [];
+      for (let i = 0; i <= 365; i++) {
+        const md = dayIndexToMonthDay(i);
+        const dd = perDay[md];
+        if (!dd) continue;
+        const tv = dd.temperature.find(v => v.year === ternarySelectedYear)?.value;
+        const ev = dd.et.find(v => v.year === ternarySelectedYear)?.value;
+        const dv = dd.dli.find(v => v.year === ternarySelectedYear)?.value;
+        if (tv == null || ev == null || dv == null) continue;
+        allTemp.push(tv);
+        allEt.push(ev);
+        allDli.push(dv);
+        allText.push(dayIndexToLabel(i));
+        allColors.push(i);
+      }
+
+      // Build 10-year average for all 365 days
+      const avgTemp = [], avgEt = [], avgDli = [], avgText = [];
+      for (let i = 0; i <= 365; i++) {
+        const md = dayIndexToMonthDay(i);
+        const avg = tenYearAvg[md];
+        if (!avg || avg.temperature == null || avg.et == null || avg.dli == null) continue;
+        avgTemp.push(avg.temperature);
+        avgEt.push(avg.et);
+        avgDli.push(avg.dli);
+        avgText.push(dayIndexToLabel(i));
+      }
+
+      // Current day data
+      const monthDay = dayIndexToMonthDay(ternaryDayIndex);
+      const dayData = perDay[monthDay];
+      const yearTemp = dayData?.temperature.find(v => v.year === ternarySelectedYear)?.value;
+      const yearEt = dayData?.et.find(v => v.year === ternarySelectedYear)?.value;
+      const yearDli = dayData?.dli.find(v => v.year === ternarySelectedYear)?.value;
+      const hasYear = yearTemp != null && yearEt != null && yearDli != null;
+
+      const avgEntry = tenYearAvg[monthDay];
+      const hasAvg = avgEntry && avgEntry.temperature != null && avgEntry.et != null && avgEntry.dli != null;
+
+      const traces = [];
+
+      // Trace 1: All days of selected year
+      traces.push({
+        type: 'scatter3d',
+        mode: 'markers',
+        x: allTemp, y: allEt, z: allDli,
+        text: allText,
+        marker: {
+          size: 3,
+          color: allColors,
+          colorscale: [[0, '#6b3fa0'], [0.25, '#4fc3f7'], [0.5, '#66bb6a'], [0.75, '#ff9800'], [1, '#e91e63']],
+          opacity: 0.6
+        },
+        hovertemplate: '%{text}<br>Temp: %{x:.1f}\u00B0C<br>ET: %{y:.2f}mm<br>DLI: %{z:.1f}<extra></extra>',
+        name: ternarySelectedYear + ' (all days)',
+        showlegend: true
+      });
+
+      // Trace 2: 10-year average trajectory
+      traces.push({
+        type: 'scatter3d',
+        mode: 'markers',
+        x: avgTemp, y: avgEt, z: avgDli,
+        text: avgText,
+        marker: { size: 2, color: 'rgba(255,255,255,0.25)' },
+        hovertemplate: '%{text}<br>Avg Temp: %{x:.1f}\u00B0C<br>Avg ET: %{y:.2f}mm<br>Avg DLI: %{z:.1f}<extra></extra>',
+        name: '10-Year Avg',
+        showlegend: true
+      });
+
+      // Trace 3: Highlighted current day
+      if (hasYear) {
+        traces.push({
+          type: 'scatter3d',
+          mode: 'markers',
+          x: [yearTemp], y: [yearEt], z: [yearDli],
+          text: [dayIndexToLabel(ternaryDayIndex)],
+          marker: { size: 10, color: '#e91e63', line: { color: 'white', width: 2 } },
+          hovertemplate: '%{text}<br>Temp: %{x:.1f}\u00B0C<br>ET: %{y:.2f}mm<br>DLI: %{z:.1f}<extra></extra>',
+          name: dayIndexToLabel(ternaryDayIndex) + ' ' + ternarySelectedYear,
+          showlegend: true
+        });
+      }
+
+      // Trace 4: Highlighted average for same day
+      if (hasAvg) {
+        traces.push({
+          type: 'scatter3d',
+          mode: 'markers',
+          x: [avgEntry.temperature], y: [avgEntry.et], z: [avgEntry.dli],
+          marker: { size: 8, color: 'rgba(255,255,255,0.3)', symbol: 'diamond', line: { color: 'white', width: 2 } },
+          hovertemplate: dayIndexToLabel(ternaryDayIndex) + ' Avg<br>Temp: %{x:.1f}\u00B0C<br>ET: %{y:.2f}mm<br>DLI: %{z:.1f}<extra></extra>',
+          name: dayIndexToLabel(ternaryDayIndex) + ' Avg',
+          showlegend: true
+        });
+      }
+
+      // Trace 5: Connecting line between current year and average
+      if (hasYear && hasAvg) {
+        traces.push({
+          type: 'scatter3d',
+          mode: 'lines',
+          x: [yearTemp, avgEntry.temperature], y: [yearEt, avgEntry.et], z: [yearDli, avgEntry.dli],
+          line: { color: 'rgba(255,255,255,0.4)', width: 3, dash: 'dash' },
+          showlegend: false, hoverinfo: 'skip'
+        });
+      }
+
+      const layout = {
+        scene: {
+          xaxis: {
+            title: { text: 'Temperature (\u00B0C)', font: { color: '#ff9800', family: 'Montserrat', size: 12 } },
+            range: [extremes.temperature.min, extremes.temperature.max],
+            gridcolor: 'rgba(255,152,0,0.15)', color: 'rgba(255,152,0,0.6)',
+            backgroundcolor: 'rgba(0,0,0,0)'
+          },
+          yaxis: {
+            title: { text: 'ET (mm)', font: { color: '#66bb6a', family: 'Montserrat', size: 12 } },
+            range: [extremes.et.min, extremes.et.max],
+            gridcolor: 'rgba(102,187,106,0.15)', color: 'rgba(102,187,106,0.6)',
+            backgroundcolor: 'rgba(0,0,0,0)'
+          },
+          zaxis: {
+            title: { text: 'DLI (mol/m\u00B2/day)', font: { color: '#4fc3f7', family: 'Montserrat', size: 12 } },
+            range: [extremes.dli.min, extremes.dli.max],
+            gridcolor: 'rgba(79,195,247,0.15)', color: 'rgba(79,195,247,0.6)',
+            backgroundcolor: 'rgba(0,0,0,0)'
+          },
+          bgcolor: 'rgba(0,0,0,0)',
+          dragmode: 'orbit'
+        },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { family: 'Montserrat, sans-serif', color: 'white' },
+        legend: { x: 0, y: -0.05, orientation: 'h', font: { color: 'white', size: 11 }, bgcolor: 'rgba(0,0,0,0)' },
+        margin: { l: 0, r: 0, t: 0, b: 0 },
+        autosize: true
+      };
+
+      const config = { responsive: true, displayModeBar: false };
+
+      if (plotlyInitRef.current) {
+        PlotlyLib.react(scatter3dRef.current, traces, layout, config);
+      } else {
+        PlotlyLib.newPlot(scatter3dRef.current, traces, layout, config);
+        plotlyInitRef.current = true;
+      }
+    });
+
+    return () => {
+      if (scatter3dRef.current && plotlyInitRef.current) {
+        import('plotly.js-gl3d-dist-min').then(Plotly => {
+          const PlotlyLib = Plotly.default || Plotly;
+          if (scatter3dRef.current) PlotlyLib.purge(scatter3dRef.current);
+          plotlyInitRef.current = false;
+        });
+      }
+    };
+  }, [ternaryData, ternaryDayIndex, ternarySelectedYear]);
+
   const renderTernaryChart = () => {
     if (!ternaryData) return null;
-    const { perDay, extremes, tenYearAvg } = ternaryData;
-    const monthDay = dayIndexToMonthDay(ternaryDayIndex);
-    const dayData = perDay[monthDay];
-    if (!dayData) return null;
-
-    const yearTemp = dayData.temperature.find(v => v.year === ternarySelectedYear)?.value;
-    const yearEt = dayData.et.find(v => v.year === ternarySelectedYear)?.value;
-    const yearDli = dayData.dli.find(v => v.year === ternarySelectedYear)?.value;
-
-    const avgEntry = tenYearAvg[monthDay];
-    const hasYear = yearTemp != null && yearEt != null && yearDli != null;
-    const hasAvg = avgEntry && avgEntry.temperature != null && avgEntry.et != null && avgEntry.dli != null;
-
-    const tempPct = hasYear ? normalizeToPercent(yearTemp, extremes.temperature.min, extremes.temperature.max) : 33;
-    const etPct = hasYear ? normalizeToPercent(yearEt, extremes.et.min, extremes.et.max) : 33;
-    const dliPct = hasYear ? normalizeToPercent(yearDli, extremes.dli.min, extremes.dli.max) : 33;
-
-    const avgTempPct = hasAvg ? normalizeToPercent(avgEntry.temperature, extremes.temperature.min, extremes.temperature.max) : 33;
-    const avgEtPct = hasAvg ? normalizeToPercent(avgEntry.et, extremes.et.min, extremes.et.max) : 33;
-    const avgDliPct = hasAvg ? normalizeToPercent(avgEntry.dli, extremes.dli.min, extremes.dli.max) : 33;
-
-    const width = 660;
-    const margin = 85;
-    const triWidth = width - 2 * margin;
-    const triHeight = triWidth * Math.sqrt(3) / 2;
-    const height = triHeight + 2 * margin;
-
-    const top = { x: width / 2, y: margin };
-    const bottomLeft = { x: margin, y: margin + triHeight };
-    const bottomRight = { x: width - margin, y: margin + triHeight };
-
-    const toPixel = (coord) => ({
-      x: bottomLeft.x + coord.x * triWidth,
-      y: bottomLeft.y - coord.y * triWidth
-    });
-
-    const point = hasYear ? toPixel(ternaryToCartesian(tempPct, etPct, dliPct)) : null;
-    const avgPoint = hasAvg ? toPixel(ternaryToCartesian(avgTempPct, avgEtPct, avgDliPct)) : null;
-
-    // Build trail (last 14 days)
-    const trailPoints = [];
-    const trailDays = 14;
-    for (let i = Math.max(0, ternaryDayIndex - trailDays); i < ternaryDayIndex; i++) {
-      const md = dayIndexToMonthDay(i);
-      const dd = perDay[md];
-      if (!dd) continue;
-      const tv = dd.temperature.find(v => v.year === ternarySelectedYear)?.value;
-      const ev = dd.et.find(v => v.year === ternarySelectedYear)?.value;
-      const dv = dd.dli.find(v => v.year === ternarySelectedYear)?.value;
-      if (tv == null || ev == null || dv == null) continue;
-      const tp = normalizeToPercent(tv, extremes.temperature.min, extremes.temperature.max);
-      const ep = normalizeToPercent(ev, extremes.et.min, extremes.et.max);
-      const dp = normalizeToPercent(dv, extremes.dli.min, extremes.dli.max);
-      const px = toPixel(ternaryToCartesian(tp, ep, dp));
-      const opacity = 0.15 + 0.6 * ((i - Math.max(0, ternaryDayIndex - trailDays)) / trailDays);
-      trailPoints.push({ ...px, opacity });
-    }
-
-    // Grid lines helper: interpolate between vertices at fraction t
-    const lerp = (p1, p2, t) => ({ x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t });
-    const gridLines = [];
-    [0.2, 0.4, 0.6, 0.8].forEach(t => {
-      // Lines parallel to bottom — temperature gridlines (orange)
-      gridLines.push({ x1: lerp(top, bottomLeft, t), x2: lerp(top, bottomRight, t), color: 'rgba(255,152,0,0.18)' });
-      // Lines parallel to left — DLI gridlines (blue)
-      gridLines.push({ x1: lerp(bottomRight, top, t), x2: lerp(bottomRight, bottomLeft, t), color: 'rgba(79,195,247,0.18)' });
-      // Lines parallel to right — ET gridlines (green)
-      gridLines.push({ x1: lerp(bottomLeft, top, t), x2: lerp(bottomLeft, bottomRight, t), color: 'rgba(102,187,106,0.18)' });
-    });
-
     return (
-      <svg width="100%" viewBox={`0 0 ${width} ${height + 50}`} style={{ display: 'block', margin: '0 auto', maxWidth: '660px' }}>
-        {/* Grid lines — color-coded by axis */}
-        {gridLines.map((line, i) => (
-          <line key={i} x1={line.x1.x} y1={line.x1.y} x2={line.x2.x} y2={line.x2.y}
-            stroke={line.color} strokeWidth="1" />
-        ))}
-
-        {/* Triangle */}
-        <polygon
-          points={`${top.x},${top.y} ${bottomLeft.x},${bottomLeft.y} ${bottomRight.x},${bottomRight.y}`}
-          fill="rgba(107, 63, 160, 0.08)"
-          stroke="rgba(255,255,255,0.4)"
-          strokeWidth="2"
-        />
-
-        {/* Axis labels, tick marks (parallel to grid lines), and Low/High labels */}
-        {(() => {
-          const tickPcts = [0, 20, 40, 60, 80, 100];
-          const lp = (p1, p2, t) => ({ x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t });
-          const axisElements = [];
-          const tickLen = 12;
-          const s32 = Math.sqrt(3) / 2;
-
-          // Tick directions — each parallel to the OPPOSITE side, pointing outward
-          // Left side (Temp): gridlines horizontal → tick horizontal left
-          const tempTickDir = { x: -1, y: 0 };
-          // Bottom side (ET): gridlines parallel to right side → tick down-right
-          const etTickDir = { x: 0.5, y: s32 };
-          // Right side (DLI): gridlines parallel to left side → tick up-right
-          const dliTickDir = { x: 0.5, y: -s32 };
-
-          // --- LEFT SIDE: Temperature — 0% at bottom-left, 100% at top ---
-          {
-            const mid = lp(bottomLeft, top, 0.5);
-            const angle = Math.atan2(top.y - bottomLeft.y, top.x - bottomLeft.x) * 180 / Math.PI;
-            axisElements.push(
-              <text key="temp-label" x={mid.x - 28} y={mid.y + 2}
-                textAnchor="middle" fill="#ff9800" fontFamily="Montserrat, sans-serif"
-                fontWeight="700" fontSize="12" transform={`rotate(${angle}, ${mid.x - 28}, ${mid.y + 2})`}>
-                TEMPERATURE
-              </text>
-            );
-            tickPcts.forEach(pct => {
-              const t = pct / 100;
-              const p = lp(bottomLeft, top, t);
-              axisElements.push(
-                <line key={`temp-tick-${pct}`}
-                  x1={p.x} y1={p.y}
-                  x2={p.x + tempTickDir.x * tickLen} y2={p.y + tempTickDir.y * tickLen}
-                  stroke="rgba(255,152,0,0.5)" strokeWidth="1" />
-              );
-              axisElements.push(
-                <text key={`temp-ticklbl-${pct}`}
-                  x={p.x + tempTickDir.x * (tickLen + 14)} y={p.y + tempTickDir.y * (tickLen + 14) + 3}
-                  textAnchor="middle" fill="rgba(255,152,0,0.7)"
-                  fontFamily="Montserrat, sans-serif" fontSize="9">{pct}%</text>
-              );
-            });
-            // Low/High
-            const lowP = lp(bottomLeft, top, 0);
-            const highP = lp(bottomLeft, top, 1);
-            axisElements.push(
-              <text key="temp-low" x={lowP.x + tempTickDir.x * (tickLen + 30)} y={lowP.y + 4}
-                textAnchor="middle" fill="rgba(255,152,0,0.5)"
-                fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="9">Low</text>
-            );
-            axisElements.push(
-              <text key="temp-high" x={highP.x + tempTickDir.x * (tickLen + 30)} y={highP.y + 4}
-                textAnchor="middle" fill="#ff9800"
-                fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="9">High</text>
-            );
-          }
-
-          // --- RIGHT SIDE: DLI — 0% at bottom-right, 100% at top ---
-          {
-            const mid = lp(bottomRight, top, 0.5);
-            const angle = Math.atan2(top.y - bottomRight.y, top.x - bottomRight.x) * 180 / Math.PI;
-            axisElements.push(
-              <text key="dli-label" x={mid.x + 28} y={mid.y - 2}
-                textAnchor="middle" fill="#4fc3f7" fontFamily="Montserrat, sans-serif"
-                fontWeight="700" fontSize="12" transform={`rotate(${angle}, ${mid.x + 28}, ${mid.y - 2})`}>
-                DLI
-              </text>
-            );
-            tickPcts.forEach(pct => {
-              const t = pct / 100;
-              const p = lp(bottomRight, top, t);
-              axisElements.push(
-                <line key={`dli-tick-${pct}`}
-                  x1={p.x} y1={p.y}
-                  x2={p.x + dliTickDir.x * tickLen} y2={p.y + dliTickDir.y * tickLen}
-                  stroke="rgba(79,195,247,0.5)" strokeWidth="1" />
-              );
-              axisElements.push(
-                <text key={`dli-ticklbl-${pct}`}
-                  x={p.x + dliTickDir.x * (tickLen + 14)} y={p.y + dliTickDir.y * (tickLen + 14) + 3}
-                  textAnchor="middle" fill="rgba(79,195,247,0.7)"
-                  fontFamily="Montserrat, sans-serif" fontSize="9">{pct}%</text>
-              );
-            });
-            // Low/High
-            const lowP = lp(bottomRight, top, 0);
-            const highP = lp(bottomRight, top, 1);
-            axisElements.push(
-              <text key="dli-low" x={lowP.x + dliTickDir.x * (tickLen + 30)} y={lowP.y + dliTickDir.y * (tickLen + 30) + 3}
-                textAnchor="middle" fill="rgba(79,195,247,0.5)"
-                fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="9">Low</text>
-            );
-            axisElements.push(
-              <text key="dli-high" x={highP.x + dliTickDir.x * (tickLen + 30)} y={highP.y + dliTickDir.y * (tickLen + 30) + 3}
-                textAnchor="middle" fill="#4fc3f7"
-                fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="9">High</text>
-            );
-          }
-
-          // --- BOTTOM SIDE: ET — 0% at bottom-right, 100% at bottom-left ---
-          {
-            const mid = lp(bottomRight, bottomLeft, 0.5);
-            axisElements.push(
-              <text key="et-label" x={mid.x} y={mid.y + 38}
-                textAnchor="middle" fill="#66bb6a" fontFamily="Montserrat, sans-serif"
-                fontWeight="700" fontSize="12">
-                {'\u2190 ET \u2014 EVAPOTRANSPIRATION'}
-              </text>
-            );
-            tickPcts.forEach(pct => {
-              const t = pct / 100;
-              const p = lp(bottomRight, bottomLeft, t);
-              axisElements.push(
-                <line key={`et-tick-${pct}`}
-                  x1={p.x} y1={p.y}
-                  x2={p.x + etTickDir.x * tickLen} y2={p.y + etTickDir.y * tickLen}
-                  stroke="rgba(102,187,106,0.5)" strokeWidth="1" />
-              );
-              axisElements.push(
-                <text key={`et-ticklbl-${pct}`}
-                  x={p.x + etTickDir.x * (tickLen + 10)} y={p.y + etTickDir.y * (tickLen + 10) + 3}
-                  textAnchor="middle" fill="rgba(102,187,106,0.7)"
-                  fontFamily="Montserrat, sans-serif" fontSize="9">{pct}%</text>
-              );
-            });
-            // Low/High
-            const lowP = lp(bottomRight, bottomLeft, 0);
-            const highP = lp(bottomRight, bottomLeft, 1);
-            axisElements.push(
-              <text key="et-low" x={lowP.x + etTickDir.x * (tickLen + 28)} y={lowP.y + etTickDir.y * (tickLen + 28) + 3}
-                textAnchor="middle" fill="rgba(102,187,106,0.5)"
-                fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="9">Low</text>
-            );
-            axisElements.push(
-              <text key="et-high" x={highP.x + etTickDir.x * (tickLen + 28)} y={highP.y + etTickDir.y * (tickLen + 28) + 3}
-                textAnchor="middle" fill="#66bb6a"
-                fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="9">High</text>
-            );
-          }
-
-          // Vertex labels with actual max values
-          axisElements.push(
-            <text key="v-top" x={top.x} y={top.y - 12} textAnchor="middle" fill="#ff9800"
-              fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="10">
-              {extremes.temperature.max.toFixed(0)}{'\u00B0'}C
-            </text>
-          );
-          axisElements.push(
-            <text key="v-bl" x={bottomLeft.x - 20} y={bottomLeft.y + 5} textAnchor="middle" fill="#66bb6a"
-              fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="10">
-              {extremes.et.max.toFixed(1)}mm
-            </text>
-          );
-          axisElements.push(
-            <text key="v-br" x={bottomRight.x + 22} y={bottomRight.y + 5} textAnchor="middle" fill="#4fc3f7"
-              fontFamily="Montserrat, sans-serif" fontWeight="600" fontSize="10">
-              {extremes.dli.max.toFixed(0)} mol
-            </text>
-          );
-
-          return axisElements;
-        })()}
-
-        {/* Trail */}
-        {trailPoints.length > 1 && trailPoints.map((tp, i) => {
-          if (i === 0) return null;
-          const prev = trailPoints[i - 1];
-          return <line key={`tl-${i}`} x1={prev.x} y1={prev.y} x2={tp.x} y2={tp.y}
-            stroke="#e91e63" strokeWidth="1.5" opacity={tp.opacity} />;
-        })}
-        {trailPoints.map((tp, i) => (
-          <circle key={`tc-${i}`} cx={tp.x} cy={tp.y} r={2.5}
-            fill="#e91e63" opacity={tp.opacity} />
-        ))}
-
-        {/* Connecting line */}
-        {point && avgPoint && (
-          <line x1={point.x} y1={point.y} x2={avgPoint.x} y2={avgPoint.y}
-            stroke="rgba(255,255,255,0.3)" strokeWidth="1" strokeDasharray="4,3" />
-        )}
-
-        {/* 10-year average point */}
-        {avgPoint && (
-          <>
-            <circle cx={avgPoint.x} cy={avgPoint.y} r={9} fill="none" stroke="white" strokeWidth="2.5" />
-            <circle cx={avgPoint.x} cy={avgPoint.y} r={3} fill="white" />
-          </>
-        )}
-
-        {/* Current year point */}
-        {point && (
-          <circle cx={point.x} cy={point.y} r={10} fill="#e91e63" stroke="white" strokeWidth="2.5" />
-        )}
-
-        {/* Legend */}
-        <circle cx={margin} cy={height + 25} r={6} fill="#e91e63" stroke="white" strokeWidth="1.5" />
-        <text x={margin + 15} y={height + 30} fill="white" fontFamily="Montserrat, sans-serif" fontSize="12">
-          {ternarySelectedYear}
-        </text>
-        <circle cx={margin + 80} cy={height + 25} r={6} fill="none" stroke="white" strokeWidth="2" />
-        <text x={margin + 95} y={height + 30} fill="white" fontFamily="Montserrat, sans-serif" fontSize="12">
-          10-Year Avg (2016-2025)
-        </text>
-        <line x1={margin + 260} y1={height + 25} x2={margin + 280} y2={height + 25}
-          stroke="#e91e63" strokeWidth="2" opacity="0.5" />
-        <circle cx={margin + 270} cy={height + 25} r={2.5} fill="#e91e63" opacity="0.5" />
-        <text x={margin + 290} y={height + 30} fill="white" fontFamily="Montserrat, sans-serif" fontSize="12">
-          14-day trail
-        </text>
-      </svg>
+      <div ref={scatter3dRef} style={{ width: '100%', height: '550px' }} />
     );
   };
 
@@ -1433,15 +1292,9 @@ export default function Home() {
             <div style={{ fontWeight: '600', marginBottom: '6px', color: '#e91e63' }}>{row.label}</div>
             <div style={{ marginBottom: '3px' }}>
               {ternarySelectedYear}: {row.value != null ? row.value.toFixed(1) : 'N/A'} {row.unit}
-              <span style={{ color: '#aaa', marginLeft: '8px' }}>
-                ({row.value != null ? normalizeToPercent(row.value, row.min, row.max).toFixed(0) : '-'}%)
-              </span>
             </div>
             <div style={{ color: '#aaa' }}>
               10yr Avg: {row.avgValue != null ? row.avgValue.toFixed(1) : 'N/A'} {row.unit}
-              <span style={{ marginLeft: '8px' }}>
-                ({row.avgValue != null ? normalizeToPercent(row.avgValue, row.min, row.max).toFixed(0) : '-'}%)
-              </span>
             </div>
             <div style={{ color: '#666', fontSize: '11px', marginTop: '4px' }}>
               Range: {row.min.toFixed(1)} – {row.max.toFixed(1)} {row.unit}
@@ -1622,7 +1475,7 @@ export default function Home() {
                 fontFamily: "'Montserrat', sans-serif"
               }}
             >
-              Ternary Graph
+              3D Scatter
             </button>
           </div>
         </div>
@@ -1849,7 +1702,7 @@ export default function Home() {
             </div>
           </div>}
 
-          {/* Ternary Graph Controls */}
+          {/* 3D Scatter Controls */}
           {activeTab === 'ternary' && (
             <div style={{ marginBottom: '25px' }}>
               <div style={{ marginBottom: '20px' }}>
@@ -2059,7 +1912,7 @@ export default function Home() {
                   fontFamily: "'Montserrat', sans-serif"
                 }}
               >
-                {ternaryLoading ? 'Loading All Metrics...' : 'Generate Ternary Graph'}
+                {ternaryLoading ? 'Loading All Metrics...' : 'Generate 3D Scatter'}
               </button>
             )}
           </div>
@@ -2234,7 +2087,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Ternary Graph Display */}
+        {/* 3D Scatter Plot Display */}
         {activeTab === 'ternary' && ternaryData && (
           <div style={{ padding: '30px', fontFamily: "'Montserrat', sans-serif" }}>
             <div ref={ternaryChartRef} style={{
@@ -2272,14 +2125,14 @@ export default function Home() {
                 color: 'white', marginBottom: '20px', textAlign: 'center',
                 fontFamily: "'Montserrat', sans-serif", fontWeight: '600'
               }}>
-                Ternary Climate Profile: {dayIndexToLabel(ternaryDayIndex)}
+                3D Climate Scatter: {dayIndexToLabel(ternaryDayIndex)}
                 <span style={{ display: 'block', fontSize: '0.8em', color: '#aaa', marginTop: '5px', fontWeight: '400' }}>
-                  ET / DLI / Temperature — {ternarySelectedYear} vs 10-Year Average (2016–2025)
+                  Temperature / ET / DLI — {ternarySelectedYear} vs 10-Year Average (2016–2025)
                 </span>
               </h3>
 
               <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'center' }}>
-                <div style={{ flex: '1 1 500px', maxWidth: '600px' }}>
+                <div style={{ flex: '1 1 600px', maxWidth: '900px' }}>
                   {renderTernaryChart()}
                 </div>
                 <div style={{ flex: '0 0 250px' }}>
@@ -2293,15 +2146,15 @@ export default function Home() {
               padding: '20px', margin: '20px 0', borderRadius: '8px'
             }}>
               <h3 style={{ color: '#e91e63', marginBottom: '10px', fontFamily: "'Montserrat', sans-serif" }}>
-                Understanding the Ternary Graph
+                Using the 3D Scatter Plot
               </h3>
               <ul style={{ color: '#ccc', lineHeight: '1.8', fontFamily: "'Montserrat', sans-serif" }}>
-                <li><strong style={{ color: 'white' }}>Three axes:</strong> Temperature (top), ET (bottom-left), DLI (bottom-right)</li>
-                <li><strong style={{ color: 'white' }}>Each metric</strong> is normalized 0–100% based on historical extremes (1980–2025)</li>
-                <li><strong style={{ color: 'white' }}>The point position</strong> shows the relative balance between the three metrics</li>
-                <li><strong style={{ color: '#e91e63' }}>Filled circle:</strong> Selected year's data for the current date</li>
-                <li><strong style={{ color: 'white' }}>Hollow circle:</strong> 10-year average (2016–2025) for comparison</li>
-                <li><strong style={{ color: 'white' }}>Fading trail:</strong> Shows the path of the last 14 days</li>
+                <li><strong style={{ color: '#ff9800' }}>X-axis:</strong> Temperature ({'\u00B0'}C) &nbsp; <strong style={{ color: '#66bb6a' }}>Y-axis:</strong> ET (mm) &nbsp; <strong style={{ color: '#4fc3f7' }}>Z-axis:</strong> DLI (mol/m{'\u00B2'}/day)</li>
+                <li><strong style={{ color: 'white' }}>Drag to rotate</strong> the plot. Scroll to zoom. Right-click drag to pan.</li>
+                <li><strong style={{ color: 'white' }}>Coloured points:</strong> All days of the selected year, coloured by season (purple{'\u2192'}blue{'\u2192'}green{'\u2192'}orange{'\u2192'}pink)</li>
+                <li><strong style={{ color: '#e91e63' }}>Large pink circle:</strong> The currently selected date</li>
+                <li><strong style={{ color: 'white' }}>White diamond:</strong> 10-year average (2016{'\u2013'}2025) for the same date</li>
+                <li><strong style={{ color: 'white' }}>Dashed line:</strong> Connects current year to the average, showing deviation</li>
               </ul>
             </div>
           </div>
