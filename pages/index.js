@@ -1257,6 +1257,11 @@ export default function Home() {
       const config = { responsive: true, displayModeBar: false };
 
       if (plotlyInitRef.current) {
+        // Preserve the current camera angle when updating
+        const currentCamera = scatter3dRef.current._fullLayout?.scene?._scene?.getCamera();
+        if (currentCamera) {
+          layout.scene.camera = currentCamera;
+        }
         PlotlyLib.react(scatter3dRef.current, traces, layout, config);
       } else {
         PlotlyLib.newPlot(scatter3dRef.current, traces, layout, config);
