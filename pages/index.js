@@ -1104,6 +1104,18 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [ternaryPlaying]);
 
+  // Helper: look up metric value for a given MM-DD from either historical year or current (recent+forecast)
+  const getMetricValue = (ternaryData, md, metric, selectedYear) => {
+    if (selectedYear === 'current') {
+      const recent = ternaryData.recentData?.[md];
+      if (recent && recent[metric] != null) return recent[metric];
+      const forecast = ternaryData.forecastData?.[md];
+      if (forecast && forecast[metric] != null) return forecast[metric];
+      return undefined;
+    }
+    return ternaryData.perDay[md]?.[metric]?.find(v => v.year === selectedYear)?.value;
+  };
+
   // 3D scatter plot rendering via Plotly
   useEffect(() => {
     if (!scatter3dRef.current || !ternaryData) return;
@@ -1117,11 +1129,9 @@ export default function Home() {
       for (let i = 0; i <= 365; i++) {
         if (!visibleMonths.has(dayIndexToMonth(i))) continue;
         const md = dayIndexToMonthDay(i);
-        const dd = perDay[md];
-        if (!dd) continue;
-        const tv = dd.temperature.find(v => v.year === ternarySelectedYear)?.value;
-        const ev = dd.et.find(v => v.year === ternarySelectedYear)?.value;
-        const dv = dd.dli.find(v => v.year === ternarySelectedYear)?.value;
+        const tv = getMetricValue(ternaryData, md, 'temperature', ternarySelectedYear);
+        const ev = getMetricValue(ternaryData, md, 'et', ternarySelectedYear);
+        const dv = getMetricValue(ternaryData, md, 'dli', ternarySelectedYear);
         if (tv == null || ev == null || dv == null) continue;
         allTemp.push(tv);
         allEt.push(ev);
@@ -1146,10 +1156,9 @@ export default function Home() {
 
       // Current day data
       const monthDay = dayIndexToMonthDay(ternaryDayIndex);
-      const dayData = perDay[monthDay];
-      const yearTemp = dayData?.temperature.find(v => v.year === ternarySelectedYear)?.value;
-      const yearEt = dayData?.et.find(v => v.year === ternarySelectedYear)?.value;
-      const yearDli = dayData?.dli.find(v => v.year === ternarySelectedYear)?.value;
+      const yearTemp = getMetricValue(ternaryData, monthDay, 'temperature', ternarySelectedYear);
+      const yearEt = getMetricValue(ternaryData, monthDay, 'et', ternarySelectedYear);
+      const yearDli = getMetricValue(ternaryData, monthDay, 'dli', ternarySelectedYear);
       const hasYear = yearTemp != null && yearEt != null && yearDli != null;
 
       const avgEntry = tenYearAvg[monthDay];
@@ -1170,7 +1179,7 @@ export default function Home() {
           opacity: 0.6
         },
         hovertemplate: '%{text}<br>Temp: %{x:.1f}\u00B0C<br>ET: %{y:.2f}mm<br>DLI: %{z:.1f}<extra></extra>',
-        name: ternarySelectedYear + ' (all days)',
+        name: (ternarySelectedYear === 'current' ? 'Current' : ternarySelectedYear) + ' (all days)',
         showlegend: true
       });
 
@@ -1342,16 +1351,17 @@ export default function Home() {
 
       const traces = [];
 
+      const yearLabel = ternarySelectedYear === 'current' ? 'Current' : ternarySelectedYear;
+
       metrics.forEach((metric, mi) => {
         const xDays = [], yDeviation = [], hoverTexts = [];
 
         for (let i = 0; i <= 365; i++) {
           if (!visibleMonths.has(dayIndexToMonth(i))) continue;
           const md = dayIndexToMonthDay(i);
-          const dd = perDay[md];
           const avg = tenYearAvg[md];
-          if (!dd || !avg || avg[metric.key] == null) continue;
-          const actual = dd[metric.key].find(v => v.year === ternarySelectedYear)?.value;
+          if (!avg || avg[metric.key] == null) continue;
+          const actual = getMetricValue(ternaryData, md, metric.key, ternarySelectedYear);
           if (actual == null || avg[metric.key] === 0) continue;
           const pct = ((actual - avg[metric.key]) / Math.abs(avg[metric.key])) * 100;
           xDays.push(i);
@@ -1380,7 +1390,7 @@ export default function Home() {
           line: { color: metric.color, width: 2 },
           fill: 'tozeroy',
           fillcolor: metric.color + '20',
-          name: `${metric.label} ${ternarySelectedYear}`,
+          name: `${metric.label} ${yearLabel}`,
           showlegend: true,
           text: hoverTexts,
           hovertemplate: '%{text}<extra></extra>',
@@ -1391,10 +1401,9 @@ export default function Home() {
         // Vertical marker for selected day
         if (visibleMonths.has(dayIndexToMonth(ternaryDayIndex))) {
           const md = dayIndexToMonthDay(ternaryDayIndex);
-          const dd = perDay[md];
           const avg = tenYearAvg[md];
-          if (dd && avg && avg[metric.key] != null) {
-            const actual = dd[metric.key].find(v => v.year === ternarySelectedYear)?.value;
+          if (avg && avg[metric.key] != null) {
+            const actual = getMetricValue(ternaryData, md, metric.key, ternarySelectedYear);
             if (actual != null && avg[metric.key] !== 0) {
               const pct = ((actual - avg[metric.key]) / Math.abs(avg[metric.key])) * 100;
               traces.push({
@@ -1494,9 +1503,9 @@ export default function Home() {
     const avgEntry = tenYearAvg[monthDay];
     if (!dayData) return null;
 
-    const yearTemp = dayData.temperature.find(v => v.year === ternarySelectedYear)?.value;
-    const yearEt = dayData.et.find(v => v.year === ternarySelectedYear)?.value;
-    const yearDli = dayData.dli.find(v => v.year === ternarySelectedYear)?.value;
+    const yearTemp = getMetricValue(ternaryData, monthDay, 'temperature', ternarySelectedYear);
+    const yearEt = getMetricValue(ternaryData, monthDay, 'et', ternarySelectedYear);
+    const yearDli = getMetricValue(ternaryData, monthDay, 'dli', ternarySelectedYear);
 
     const rows = [
       { label: 'Temperature', color: '#ff9800', value: yearTemp, avgValue: avgEntry?.temperature, unit: '\u00B0C', min: extremes.temperature.min, max: extremes.temperature.max },
@@ -1517,7 +1526,7 @@ export default function Home() {
             <div key={row.label} style={{ marginBottom: '15px', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
               <div style={{ fontWeight: '600', marginBottom: '6px', color: row.color }}>{row.label}</div>
               <div style={{ marginBottom: '3px' }}>
-                {ternarySelectedYear}: {row.value != null ? row.value.toFixed(1) : 'N/A'} {row.unit}
+                {ternarySelectedYear === 'current' ? 'Current' : ternarySelectedYear}: {row.value != null ? row.value.toFixed(1) : 'N/A'} {row.unit}
               </div>
               <div style={{ color: '#aaa', marginBottom: '3px' }}>
                 10yr Avg: {row.avgValue != null ? row.avgValue.toFixed(1) : 'N/A'} {row.unit}
@@ -1946,13 +1955,17 @@ export default function Home() {
                 </label>
                 <select
                   value={ternarySelectedYear}
-                  onChange={(e) => setTernarySelectedYear(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setTernarySelectedYear(v === 'current' ? 'current' : parseInt(v));
+                  }}
                   style={{
                     padding: '10px 16px', borderRadius: '6px',
                     border: '2px solid #6b3fa0', fontSize: '14px',
                     fontWeight: '600', background: 'white', cursor: 'pointer'
                   }}
                 >
+                  <option value="current">Current (6mo + forecast)</option>
                   {Array.from({ length: 46 }, (_, i) => 2025 - i).map(y => (
                     <option key={y} value={y}>{y}</option>
                   ))}
@@ -2432,7 +2445,7 @@ export default function Home() {
               }}>
                 3D Climate Scatter: {dayIndexToLabel(ternaryDayIndex)}
                 <span style={{ display: 'block', fontSize: '0.8em', color: '#aaa', marginTop: '5px', fontWeight: '400' }}>
-                  Temperature / ET / DLI — {ternarySelectedYear} vs 10-Year Average (2016–2025)
+                  Temperature / ET / DLI — {ternarySelectedYear === 'current' ? 'Current (6mo + forecast)' : ternarySelectedYear} vs 10-Year Average (2016–2025)
                 </span>
               </h3>
 
@@ -2452,9 +2465,9 @@ export default function Home() {
               padding: '25px', borderRadius: '12px', marginTop: '20px'
             }}>
               <h3 style={{ color: 'white', marginBottom: '15px', fontSize: '16px', fontWeight: '600', fontFamily: "'Montserrat', sans-serif" }}>
-                <span style={{ color: '#e91e63' }}>{ternarySelectedYear}</span> Deviation from 10-Year Average
+                <span style={{ color: '#e91e63' }}>{ternarySelectedYear === 'current' ? 'Current' : ternarySelectedYear}</span> Deviation from 10-Year Average
                 <span style={{ color: '#888', fontSize: '12px', fontWeight: '400', marginLeft: '10px' }}>
-                  Flat dotted line = average (0%) · Wavy line = {ternarySelectedYear} actual (% difference)
+                  Flat dotted line = average (0%) · Wavy line = {ternarySelectedYear === 'current' ? 'current' : ternarySelectedYear} actual (% difference)
                 </span>
               </h3>
               <div ref={deviationRef} style={{ width: '100%', height: '420px' }} />

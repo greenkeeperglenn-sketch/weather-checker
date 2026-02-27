@@ -75,11 +75,73 @@ export default async function handler(req, res) {
       });
     });
 
+    // Fetch recent 6 months from archive API (all 3 metrics)
+    const recentData = {}; // { "MM-DD": { temperature, et, dli } }
+    const today = new Date();
+    const sixMonthsAgo = new Date(today);
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const recentStartDate = sixMonthsAgo.toISOString().split('T')[0];
+    const recentEndDate = today.toISOString().split('T')[0];
+
+    try {
+      const recentUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${LATITUDE}&longitude=${LONGITUDE}&start_date=${recentStartDate}&end_date=${recentEndDate}&daily=${apiMetrics}&timezone=Europe/London`;
+      const recentResponse = await fetch(recentUrl);
+      if (recentResponse.ok) {
+        const recent = await recentResponse.json();
+        recent.daily.time.forEach((date, index) => {
+          const monthDay = date.substring(5);
+          const temp = recent.daily.temperature_2m_mean[index];
+          const et = recent.daily.et0_fao_evapotranspiration[index];
+          const swr = recent.daily.shortwave_radiation_sum[index];
+          const dli = swr !== null ? swr * DLI_FACTOR : null;
+          if (temp !== null || et !== null || dli !== null) {
+            recentData[monthDay] = {
+              temperature: temp,
+              et: et,
+              dli: dli
+            };
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Failed to fetch recent ternary data:', e);
+    }
+
+    // Fetch 16-day forecast (all 3 metrics)
+    const forecastData = {}; // { "MM-DD": { temperature, et, dli } }
+    try {
+      const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LATITUDE}&longitude=${LONGITUDE}&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,shortwave_radiation_sum&timezone=Europe/London&forecast_days=16`;
+      const forecastResponse = await fetch(forecastUrl);
+      if (forecastResponse.ok) {
+        const forecast = await forecastResponse.json();
+        forecast.daily.time.forEach((date, index) => {
+          const monthDay = date.substring(5);
+          const tMax = forecast.daily.temperature_2m_max[index];
+          const tMin = forecast.daily.temperature_2m_min[index];
+          const temp = (tMax !== null && tMin !== null) ? (tMax + tMin) / 2 : null;
+          const et = forecast.daily.et0_fao_evapotranspiration[index];
+          const swr = forecast.daily.shortwave_radiation_sum[index];
+          const dli = swr !== null ? swr * DLI_FACTOR : null;
+          if (temp !== null || et !== null || dli !== null) {
+            forecastData[monthDay] = {
+              temperature: temp,
+              et: et,
+              dli: dli
+            };
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Failed to fetch forecast ternary data:', e);
+    }
+
     res.status(200).json({
       success: true,
       perDay: allDaysData,
       extremes,
-      tenYearAvg
+      tenYearAvg,
+      recentData,
+      forecastData
     });
   } catch (error) {
     console.error('Error fetching ternary data:', error);
